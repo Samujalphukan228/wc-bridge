@@ -58,6 +58,11 @@
   <label>label: <input id="labelInput" type="text" value="Counter" /></label>
 
   <section>
+    <h2>Leptos (Rust → WASM) <code>&lt;lx-counter&gt;</code></h2>
+    <lx-counter id="lx-demo" initial-count="5" label="Counter"></lx-counter>
+  </section>
+
+  <section>
     <h2>React <code>&lt;rx-counter&gt;</code></h2>
     <rx-counter id="rx-demo" initial-count="5" label="Counter"></rx-counter>
   </section>
@@ -83,6 +88,14 @@
   </section>
 
   <script type="module">
+    // --- WASM/ Leptos Adapter ---
+    import { registerAll as registerLeptosComponents } from "./examples/lx-counter/www/webcomponent-runtime.js";
+    import { loadLeptosWASM } from "./examples/lx-counter/www/wasm-loader.js";
+
+    // Load and register the Leptos WASM module
+    window.wasmExports = await loadLeptosWASM("./examples/lx-counter/www/lx_counter_bg.wasm");
+    registerLeptosComponents(window.wasmExports, ["__meta_Counter"]);
+
     // --- React Adapter ---
     import { createRoot } from "https://esm.sh/react-dom@18/client";
     import React from "https://esm.sh/react@18";
