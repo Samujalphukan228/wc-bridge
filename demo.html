@@ -172,23 +172,28 @@
     });
 
     // --- Vue Adapter ---
-    import { createApp, h } from "https://esm.sh/vue@3";
-    import { defineVueComponent } from "./wc-bridge-js/src/vue-adapter.js";
+    import { createApp, h, reactive } from "https://esm.sh/vue@3";
+    import { defineVueComponent, registerVueRuntime } from "./wc-bridge-js/src/vue-adapter.js";
+
+    registerVueRuntime({ createApp, h, reactive });
 
     const VueCounter = {
       name: "VueCounter",
       props: ["label", "initial", "__emit"],
-      data() {
-        return { count: Number(this.initial) };
+      setup(props) {
+        const { label, initial, __emit } = props;
+        const state = reactive({ count: Number(initial) });
+
+        const increment = () => { state.count++; __emit("count-changed", { count: state.count }); };
+        const decrement = () => { state.count--; __emit("count-changed", { count: state.count }); };
+
+        return () => h("div", { style: "padding: 8px; border: 1px dashed #94a3b8; border-radius: var(--wc-radius)" }, [
+          h("h3", { key: "title" }, label),
+          h("p", { key: "count" }, `Count: ${state.count}`),
+          h("button", { key: "inc", onClick: increment, style: "margin: 4px" }, "+1"),
+          h("button", { key: "dec", onClick: decrement, style: "margin: 4px" }, "-1"),
+        ]);
       },
-      template: `
-        <div style="padding: 8px; border: 1px dashed #94a3b8; border-radius: var(--wc-radius)">
-          <h3>{{ label }}</h3>
-          <p>Count: {{ count }}</p>
-          <button @click="count++" style="margin: 4px">+1</button>
-          <button @click="count--" style="margin: 4px">-1</button>
-        </div>
-      `,
     };
 
     defineVueComponent("vu-counter", VueCounter, {
