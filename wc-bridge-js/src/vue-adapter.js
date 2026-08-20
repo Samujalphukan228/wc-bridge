@@ -49,7 +49,7 @@ export function defineVueComponent(tag, VueComponent, { attrs = {}, useShadow = 
     connectedCallback() {
       if (this._app) return;
 
-      const { createApp, h, reactive, watch } = vueRuntime();
+      const { createApp, h, reactive } = vueRuntime();
       if (!createApp) return;
 
       this._mountNode = useShadow ? this.attachShadow({ mode: "open" }) : this;
@@ -68,35 +68,27 @@ export function defineVueComponent(tag, VueComponent, { attrs = {}, useShadow = 
       const emit = (name, detail) =>
         self.dispatchEvent(new CustomEvent(name, { detail }));
 
-      // Vue 3 component wrapper with reactive props
+      // Create a simple wrapper that renders the Vue component directly
       const app = createApp({
-        setup() {
-          const props = reactive(self._readProps());
-
-          // Watch for external prop updates and sync them
-          watch(
-            () => self._externalProps,
-            (newProps) => {
-              if (newProps) {
-                Object.keys(newProps).forEach((key) => {
-                  props[key] = newProps[key];
-                });
-              }
-            }
-          );
-
-          return () => h(VueComponent, { ...props, __emit: emit });
-        },
+        render: () => h(VueComponent, {
+          ...self._readProps(),
+          __emit: emit
+        })
       });
 
-      app.config.globalProperties.__emit = emit;
       this._app = app;
       app.mount(mountPoint);
     }
 
     attributeChangedCallback() {
-      // Trigger re-render by syncing external props
-      this._externalProps = this._readProps();
+      if (this._app) {
+        // Force Vue to re-render by triggering a reactive update
+        const newProps = this._readProps();
+        // Store reference for render function to pick up
+        this._lastProps = newProps;
+        // Mark component as needing update
+        this._app._instance?.proxy?.$forceUpdate?.();
+      }
     }
 
     disconnectedCallback() {

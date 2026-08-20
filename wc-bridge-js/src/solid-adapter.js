@@ -75,9 +75,8 @@ export function defineSolidComponent(tag, Component, { attrs = {}, useShadow = t
 
     attributeChangedCallback() {
       if (this._mountPoint) {
-        // Re-read props — Solid components re-render reactively
-        const props = this._readProps();
-        Object.assign(this._props, props);
+        // Re-read props for Solid.js — triggers re-render through reactivity
+        this._props = this._readProps();
       }
     }
 

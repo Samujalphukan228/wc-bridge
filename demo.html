@@ -180,24 +180,32 @@
     });
 
     // --- Vue Adapter ---
-    import { createApp, h, reactive } from "https://esm.sh/vue@3";
+    import { createApp, h } from "https://esm.sh/vue@3";
     import { defineVueComponent, registerVueRuntime } from "./wc-bridge-js/src/vue-adapter.js";
 
-    registerVueRuntime({ createApp, h, reactive });
+    registerVueRuntime({ createApp, h });
 
     const VueCounter = {
       name: "VueCounter",
       props: ["label", "initial", "__emit"],
       setup(props) {
-        const { label, initial, __emit } = props;
-        const state = reactive({ count: Number(initial) });
-
-        const increment = () => { state.count++; __emit("count-changed", { count: state.count }); };
-        const decrement = () => { state.count--; __emit("count-changed", { count: state.count }); };
+        let count = Number(props.initial);
+        
+        function increment() { 
+          count++; 
+          props.__emit("count-changed", { count });
+          return h("p", null, `Count: ${count}`);
+        }
+        
+        function decrement() { 
+          count--; 
+          props.__emit("count-changed", { count });
+          return h("p", null, `Count: ${count}`);
+        }
 
         return () => h("div", { style: "padding: 8px; border: 1px dashed #94a3b8; border-radius: var(--wc-radius)" }, [
-          h("h3", { key: "title" }, label),
-          h("p", { key: "count" }, `Count: ${state.count}`),
+          h("h3", { key: "title" }, props.label),
+          h("p", { key: "count" }, `Count: ${count}`),
           h("button", { key: "inc", onClick: increment, style: "margin: 4px" }, "+1"),
           h("button", { key: "dec", onClick: decrement, style: "margin: 4px" }, "-1"),
         ]);
@@ -212,11 +220,16 @@
     import { createSignal } from "https://esm.sh/solid-js@1.69.1";
     import { registerSolidRuntime, defineSolidComponent } from "./wc-bridge-js/src/solid-adapter.js";
 
-    registerSolidRuntime({ render: (fn, target) => fn(target) });
+    registerSolidRuntime({ render: (fn, target) => { 
+      const dispose = fn(target); 
+      return { unmount: () => { if (dispose && typeof dispose === 'function') dispose(); } }; 
+    } });
 
     function SolidCounter(props) {
       const [count, setCount] = createSignal(Number(props.initial));
-      props.__emit("count-changed", { count: count() });
+      
+      const increment = () => { setCount(c => c + 1); props.__emit("count-changed", { count: count() + 1 }); };
+      const decrement = () => { setCount(c => c - 1); props.__emit("count-changed", { count: count() - 1 }); };
 
       return (target) => {
         const update = () => {
@@ -228,18 +241,13 @@
               <button id="dec" style="margin: 4px">-1</button>
             </div>
           `;
-          target.getElementById("inc")?.addEventListener("click", () => {
-            setCount(c => c + 1);
-            props.__emit("count-changed", { count: count() });
-          });
-          target.getElementById("dec")?.addEventListener("click", () => {
-            setCount(c => c - 1);
-            props.__emit("count-changed", { count: count() });
-          });
+          target.getElementById("inc")?.addEventListener("click", increment);
+          target.getElementById("dec")?.addEventListener("click", decrement);
         };
         update();
-        // Re-render on signal change
+        // Subscribe to signal changes
         const unsub = count.subscribe(update);
+        return () => unsub();
       };
     }
 
