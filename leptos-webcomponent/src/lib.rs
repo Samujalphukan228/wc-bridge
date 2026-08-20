@@ -6,10 +6,10 @@
 //! dispose it cleanly (no leaked reactivity across remounts, per the
 //! contract in CONTRACT.md).
 
-use leptos::*;
+use leptos::prelude::*;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use wasm_bindgen::{JsCast, JsValue};
+use wasm_bindgen::JsValue;
 use web_sys::HtmlElement;
 
 thread_local! {
@@ -19,7 +19,7 @@ thread_local! {
 }
 
 struct ScopeDisposer {
-    disposer: Box<dyn FnOnce()>,
+    handle: Option<Box<dyn FnOnce()>>,
     count_signal: RwSignal<i32>,
 }
 
@@ -41,18 +41,19 @@ pub fn mount<F, V>(host: HtmlElement, view_fn: F)
 where
     F: FnOnce() -> V + 'static,
     V: IntoView,
+    V::State: 'static,
 {
     let id = host_id(&host);
-    let node: web_sys::Node = host.clone().into();
-    let disposer = leptos::mount_to(node.unchecked_into(), view_fn);
+    let handle = mount_to(host, view_fn);
     let count_signal = RwSignal::new(0); // writable signal for live prop updates
     SCOPES.with(|scopes| {
-        scopes
-            .borrow_mut()
-            .insert(id, ScopeDisposer {
-                disposer: Box::new(move || { let _ = disposer; }),
+        scopes.borrow_mut().insert(
+            id,
+            ScopeDisposer {
+                handle: Some(Box::new(move || drop(handle))),
                 count_signal,
-            });
+            },
+        );
     });
 }
 
@@ -87,8 +88,10 @@ pub fn update(host: HtmlElement, props_json: JsValue) {
 pub fn unmount(host: HtmlElement) {
     let id = host_id(&host);
     let scope = SCOPES.with(|scopes| scopes.borrow_mut().remove(&id));
-    if let Some(scope) = scope {
-        (scope.disposer)();
+    if let Some(mut scope) = scope {
+        if let Some(disposer) = scope.handle.take() {
+            disposer();
+        }
     }
 }
 

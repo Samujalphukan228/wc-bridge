@@ -1,6 +1,6 @@
 [package]
 name = "leptos-webcomponent"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2021"
 description = "Leptos components as standards-compliant web components with one shared contract (kebab-case attrs in, CustomEvents out, shared CSS vars)."
 license = "MIT"
@@ -11,8 +11,8 @@ categories = ["web-programming", "wasm"]
 rust-version = "1.70"
 
 [dependencies]
-leptos = { version = "0.6", features = ["csr"] }
-leptos-webcomponent-macro = { version = "1.0.0", path = "../leptos-webcomponent-macro" }
+leptos = { version = "0.7", features = ["csr"] }
+leptos-webcomponent-macro = { version = "1.1.0", path = "../leptos-webcomponent-macro" }
 wasm-bindgen = "0.2"
 web-sys = { version = "0.3", features = ["HtmlElement"] }
 js-sys = "0.3"

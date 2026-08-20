@@ -1,4 +1,4 @@
-use leptos::*;
+use leptos::prelude::*;
 use leptos_webcomponent::web_component;
 
 // This is the entire component. #[web_component] generates the
