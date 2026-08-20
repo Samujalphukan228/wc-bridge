@@ -22,7 +22,7 @@ export async function loadLeptosWASM(wasmUrl) {
             mount: "__mount_Counter",
             update: "__update_Counter",
             unmount: "__unmount_Counter",
-            attrs: ["label", "initial"],
+            attrs: ["label", "initial-count"],
           });
         },
         ...exports,
@@ -47,7 +47,7 @@ function loadFallbackImplementation() {
         mount: "__mount_Counter",
         update: "__update_Counter",
         unmount: "__unmount_Counter",
-        attrs: ["label", "initial"],
+        attrs: ["label", "initial-count"],
       });
     },
 
@@ -73,7 +73,7 @@ function loadFallbackImplementation() {
         `;
 
         const btn = shadow.getElementById("counter-btn");
-        let count = Number(props.initial) || 0;
+        let count = Number(props["initial-count"]) || 0;
 
         btn.addEventListener("click", () => {
           count++;

@@ -19,6 +19,11 @@
 
 const CSS_VARS = ["--wc-color-primary", "--wc-color-text", "--wc-radius", "--wc-font"];
 
+// CONTRACT.md: camelCase prop -> kebab-case attribute ("initialCount" -> "initial-count")
+function kebab(s) {
+  return s.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
+}
+
 function coerce(raw, kind) {
   if (raw === null) return kind === "boolean" ? false : undefined;
   switch (kind) {
@@ -39,7 +44,8 @@ function solidRuntime() {
 }
 
 export function defineSolidComponent(tag, Component, { attrs = {}, useShadow = true } = {}) {
-  const attrNames = Object.keys(attrs);
+  const attrFor = Object.fromEntries(Object.keys(attrs).map((p) => [p, kebab(p)]));
+  const attrNames = Object.values(attrFor);
 
   class SolidWebComponent extends HTMLElement {
     static get observedAttributes() {
@@ -92,13 +98,12 @@ export function defineSolidComponent(tag, Component, { attrs = {}, useShadow = t
 
     _readProps() {
       const props = {};
-      const self = this;
-      for (const name of attrNames) {
-        props[name] = coerce(this.getAttribute(name), attrs[name]);
+      for (const [prop, attr] of Object.entries(attrFor)) {
+        props[prop] = coerce(this.getAttribute(attr), attrs[prop]);
       }
 
       props.__emit = (name, detail) =>
-        self.dispatchEvent(new CustomEvent(name, { detail }));
+        this.dispatchEvent(new CustomEvent(name, { detail }));
 
       return props;
     }

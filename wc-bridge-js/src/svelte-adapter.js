@@ -17,6 +17,11 @@
 
 const CSS_VARS = ["--wc-color-primary", "--wc-color-text", "--wc-radius", "--wc-font"];
 
+// CONTRACT.md: camelCase prop -> kebab-case attribute ("initialCount" -> "initial-count")
+function kebab(s) {
+  return s.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
+}
+
 function coerce(raw, kind) {
   if (raw === null) return kind === "boolean" ? false : undefined;
   switch (kind) {
@@ -30,7 +35,8 @@ function coerce(raw, kind) {
 }
 
 export function defineSvelteComponent(tag, SvelteComponent, { attrs = {}, useShadow = true } = {}) {
-  const attrNames = Object.keys(attrs);
+  const attrFor = Object.fromEntries(Object.keys(attrs).map((p) => [p, kebab(p)]));
+  const attrNames = Object.values(attrFor);
 
   class SvelteWebComponent extends HTMLElement {
     static get observedAttributes() {
@@ -74,8 +80,8 @@ export function defineSvelteComponent(tag, SvelteComponent, { attrs = {}, useSha
 
     _readProps() {
       const props = {};
-      for (const name of attrNames) {
-        props[name] = coerce(this.getAttribute(name), attrs[name]);
+      for (const [prop, attr] of Object.entries(attrFor)) {
+        props[prop] = coerce(this.getAttribute(attr), attrs[prop]);
       }
 
       // Custom event forwarding for Svelte's dispatch system

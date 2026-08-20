@@ -7,8 +7,8 @@ use leptos_webcomponent::web_component;
 // from the meta descriptor. No hand-written JS glue per component.
 #[web_component("lx-counter")]
 #[component]
-fn Counter(#[attr] label: String, #[attr] initial: i32) -> impl IntoView {
-    let (count, set_count) = create_signal(initial);
+fn Counter(#[attr] label: String, #[attr] initialCount: i32) -> impl IntoView {
+    let (count, set_count) = create_signal(initialCount);
 
     view! {
         <button

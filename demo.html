@@ -14,299 +14,265 @@
       --wc-color-text: #1e293b;
       --wc-radius: 8px;
     }
-
     h1 { color: var(--wc-color-text); }
-
     section {
       margin: 24px 0;
       padding: 16px;
       border: 1px solid #e2e8f0;
       border-radius: var(--wc-radius);
     }
-
-    label {
-      display: block;
-      margin: 8px 0;
-    }
-
-    code {
-      background: #f1f5f9;
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-size: 0.9em;
-    }
-    
-    .notice {
-      background: #fffbeb;
-      border: 1px solid #fcd34d;
-      border-radius: 8px;
-      padding: 12px;
-      margin: 16px 0;
-    }
+    label { display: block; margin: 8px 0; }
+    code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+    .status { font-size: 0.85em; color: #64748b; margin: 4px 0 8px; }
+    .err { color: #dc2626; font-size: 0.85em; }
   </style>
 </head>
 <body>
   <h1>🌐 Multi-Framework Web Components</h1>
   <p>All components follow the <a href="CONTRACT.md">same contract</a> — interchangeable via HTML attributes.</p>
-  
-  <div class="notice">
-    ⚠️ This demo requires a local HTTP server due to ES module imports.
-    Run <code>npx serve</code> or <code>python -m http.server 8000</code> then open <a href="http://localhost:8000/demo.html">http://localhost:8000/demo.html</a>
-  </div>
 
   <label>initial-count: <input id="countInput" type="number" value="5" min="0" /></label>
   <label>label: <input id="labelInput" type="text" value="Counter" /></label>
 
-  <section>
+  <section id="sec-lx">
     <h2>Leptos (Rust → WASM) <code>&lt;lx-counter&gt;</code></h2>
+    <p class="status" id="status-lx">loading…</p>
     <lx-counter id="lx-demo" initial-count="5" label="Counter"></lx-counter>
   </section>
 
-  <section>
+  <section id="sec-rx">
     <h2>React <code>&lt;rx-counter&gt;</code></h2>
+    <p class="status" id="status-rx">loading…</p>
     <rx-counter id="rx-demo" initial-count="5" label="Counter"></rx-counter>
   </section>
 
-  <section>
+  <section id="sec-sv">
     <h2>Svelte <code>&lt;sv-counter&gt;</code></h2>
+    <p class="status" id="status-sv">loading…</p>
     <sv-counter id="sv-demo" initial-count="5" label="Counter"></sv-counter>
   </section>
 
-  <section>
+  <section id="sec-vu">
     <h2>Vue <code>&lt;vu-counter&gt;</code></h2>
+    <p class="status" id="status-vu">loading…</p>
     <vu-counter id="vu-demo" initial-count="5" label="Counter"></vu-counter>
   </section>
 
-  <section>
+  <section id="sec-sd">
     <h2>SolidJS <code>&lt;sd-counter&gt;</code></h2>
+    <p class="status" id="status-sd">loading…</p>
     <sd-counter id="sd-demo" initial-count="5" label="Counter"></sd-counter>
   </section>
 
-  <section>
+  <section id="sec-pc">
     <h2>Preact <code>&lt;pc-counter&gt;</code></h2>
+    <p class="status" id="status-pc">loading…</p>
     <pc-counter id="pc-demo" initial-count="5" label="Counter"></pc-counter>
   </section>
 
+  <!--
+    Each framework gets its OWN <script type="module"> block. ES modules
+    fail as a unit, so a broken import in one framework must never take
+    down the others. Separate blocks guarantee isolation.
+  -->
+
+  <!-- ==== Leptos (WASM) ==== -->
   <script type="module">
-    // --- WASM/ Leptos Adapter ---
-    import { registerAll as registerLeptosComponents } from "./examples/lx-counter/www/webcomponent-runtime.js";
-    import { loadLeptosWASM } from "./examples/lx-counter/www/wasm-loader.js";
-
-    // Load and register the Leptos WASM module
-    window.wasmExports = await loadLeptosWASM("./examples/lx-counter/www/lx_counter_bg.wasm");
-    registerLeptosComponents(window.wasmExports, ["__meta_Counter"]);
-
-    // --- React Adapter ---
-    import { createRoot } from "https://esm.sh/react-dom@18/client";
-    import React from "https://esm.sh/react@18";
-    import {
-      defineReactComponent,
-      registerReactRuntime,
-    } from "./wc-bridge-js/src/react-adapter.js";
-
-    registerReactRuntime(React, createRoot);
-
-    function ReactCounter({ label, initial, __emit }) {
-      const [count, setCount] = React.useState(Number(initial));
-
-      React.useEffect(() => {
-        __emit("count-changed", { count });
-      }, [count]);
-
-      return React.createElement(
-        "div",
-        { style: "padding: 8px; border: 1px dashed #94a3b8; border-radius: var(--wc-radius)" },
-        React.createElement("h3", null, label),
-        React.createElement("p", null, `Count: ${count}`),
-        React.createElement(
-          "button",
-          { onClick: () => setCount((c) => c + 1), style: "margin: 4px" },
-          "+1"
-        ),
-        React.createElement(
-          "button",
-          { onClick: () => setCount((c) => c - 1), style: "margin: 4px" },
-          "-1"
-        )
-      );
+    const el = document.getElementById("status-lx");
+    try {
+      const { registerAll } = await import("./examples/lx-counter/www/webcomponent-runtime.js");
+      const { loadLeptosWASM } = await import("./examples/lx-counter/www/wasm-loader.js");
+      const wasm = await loadLeptosWASM("./examples/lx-counter/www/lx_counter_bg.wasm");
+      registerAll(wasm, ["__meta_Counter"]);
+      el.textContent = "✅ registered (WASM or JS fallback)";
+    } catch (e) {
+      el.textContent = "❌ Leptos failed to load";
+      console.warn("Leptos load error:", e);
+      // Still define the tag so the section doesn't look broken.
+      const { registerAll } = await import("./examples/lx-counter/www/webcomponent-runtime.js");
+      registerAll({ __meta_Counter: () => JSON.stringify({
+        tag: "lx-counter", mount: "__mount_Counter", update: "__update_Counter",
+        unmount: "__unmount_Counter", attrs: ["label", "initial"],
+      }) }, ["__meta_Counter"]);
     }
+  </script>
 
-    defineReactComponent("rx-counter", ReactCounter, {
-      attrs: { label: "string", initial: "number" },
-    });
+  <!-- ==== React ==== -->
+  <script type="module">
+    const el = document.getElementById("status-rx");
+    try {
+      const React = await import("https://esm.sh/react@18");
+      const { createRoot } = await import("https://esm.sh/react-dom@18/client");
+      const { defineReactComponent, registerReactRuntime } = await import("./wc-bridge-js/src/react-adapter.js");
+      registerReactRuntime(React, createRoot);
 
-    // --- Svelte Adapter ---
-    import { defineSvelteComponent } from "./wc-bridge-js/src/svelte-adapter.js";
-
-    // Minimal inline Svelte-like component constructor
-    class SvelteCounter {
-      constructor({ target, props }) {
-        this.target = target;
-        this.props = props;
-        this.count = Number(props.initial) || 0;
-        this.render();
+      function ReactCounter({ label, initialCount, __emit }) {
+        const [count, setCount] = React.useState(Number(initialCount));
+        React.useEffect(() => { __emit("count-changed", { count }); }, [count]);
+        return React.createElement(
+          "div",
+          { style: "padding: 8px; border: 1px dashed #94a3b8; border-radius: var(--wc-radius)" },
+          React.createElement("h3", null, label),
+          React.createElement("p", null, `Count: ${count}`),
+          React.createElement("button", { onClick: () => setCount((c) => c + 1), style: "margin: 4px" }, "+1"),
+          React.createElement("button", { onClick: () => setCount((c) => c - 1), style: "margin: 4px" }, "-1")
+        );
       }
 
-      render() {
-        this.target.innerHTML = `
-          <div style="padding: 8px; border: 1px dashed #94a3b8; border-radius: var(--wc-radius)">
-            <h3>${this.props.label}</h3>
-            <p>Count: ${this.count}</p>
-            <button id="inc" style="margin: 4px">+1</button>
-            <button id="dec" style="margin: 4px">-1</button>
-          </div>
-        `;
-
-        this.target.getElementById("inc")?.addEventListener("click", () => {
-          this.count++;
-          this.dispatch();
-          this.render();
-        });
-        this.target.getElementById("dec")?.addEventListener("click", () => {
-          this.count--;
-          this.dispatch();
-          this.render();
-        });
-
-        this.dispatch();
-      }
-
-      dispatch() {
-        if (this.props.__emit) {
-          this.props.__emit("count-changed", { count: this.count });
-        }
-      }
-
-      $set(props) {
-        this.props = { ...this.props, ...props };
-        this.render();
-      }
-
-      $destroy() {
-        this.render(); // clear target
-        this.target.innerHTML = "";
-      }
+      defineReactComponent("rx-counter", ReactCounter, { attrs: { label: "string", initialCount: "number" } });
+      el.textContent = "✅ registered";
+    } catch (e) {
+      el.textContent = "❌ React failed (network to esm.sh needed)";
+      console.warn("React load error:", e);
     }
+  </script>
 
-    defineSvelteComponent("sv-counter", SvelteCounter, {
-      attrs: { label: "string", initial: "number" },
-    });
+  <!-- ==== Svelte ==== -->
+  <script type="module">
+    const el = document.getElementById("status-sv");
+    try {
+      const { defineSvelteComponent } = await import("./wc-bridge-js/src/svelte-adapter.js");
 
-    // --- Vue Adapter ---
-    import { createApp, h } from "https://esm.sh/vue@3";
-    import { defineVueComponent, registerVueRuntime } from "./wc-bridge-js/src/vue-adapter.js";
-
-    registerVueRuntime({ createApp, h });
-
-    const VueCounter = {
-      name: "VueCounter",
-      props: ["label", "initial", "__emit"],
-      setup(props) {
-        let count = Number(props.initial);
-        
-        function increment() { 
-          count++; 
-          props.__emit("count-changed", { count });
-          return h("p", null, `Count: ${count}`);
+      class SvelteCounter {
+        constructor({ target, props }) {
+          this.target = target; this.props = props;
+          this.count = Number(props.initialCount) || 0; this.render();
         }
-        
-        function decrement() { 
-          count--; 
-          props.__emit("count-changed", { count });
-          return h("p", null, `Count: ${count}`);
-        }
-
-        return () => h("div", { style: "padding: 8px; border: 1px dashed #94a3b8; border-radius: var(--wc-radius)" }, [
-          h("h3", { key: "title" }, props.label),
-          h("p", { key: "count" }, `Count: ${count}`),
-          h("button", { key: "inc", onClick: increment, style: "margin: 4px" }, "+1"),
-          h("button", { key: "dec", onClick: decrement, style: "margin: 4px" }, "-1"),
-        ]);
-      },
-    };
-
-    defineVueComponent("vu-counter", VueCounter, {
-      attrs: { label: "string", initial: "number" },
-    });
-
-    // --- SolidJS Adapter ---
-    import { createSignal } from "https://esm.sh/solid-js@1.69.1";
-    import { registerSolidRuntime, defineSolidComponent } from "./wc-bridge-js/src/solid-adapter.js";
-
-    registerSolidRuntime({ render: (fn, target) => { 
-      const dispose = fn(target); 
-      return { unmount: () => { if (dispose && typeof dispose === 'function') dispose(); } }; 
-    } });
-
-    function SolidCounter(props) {
-      const [count, setCount] = createSignal(Number(props.initial));
-      
-      const increment = () => { setCount(c => c + 1); props.__emit("count-changed", { count: count() + 1 }); };
-      const decrement = () => { setCount(c => c - 1); props.__emit("count-changed", { count: count() - 1 }); };
-
-      return (target) => {
-        const update = () => {
-          target.innerHTML = `
+        render() {
+          this.target.innerHTML = `
             <div style="padding: 8px; border: 1px dashed #94a3b8; border-radius: var(--wc-radius)">
-              <h3>${props.label}</h3>
-              <p>Count: ${count()}</p>
+              <h3>${this.props.label}</h3><p>Count: ${this.count}</p>
               <button id="inc" style="margin: 4px">+1</button>
               <button id="dec" style="margin: 4px">-1</button>
-            </div>
-          `;
-          target.getElementById("inc")?.addEventListener("click", increment);
-          target.getElementById("dec")?.addEventListener("click", decrement);
-        };
-        update();
-        // Subscribe to signal changes
-        const unsub = count.subscribe(update);
-        return () => unsub();
+            </div>`;
+          this.target.getElementById("inc")?.addEventListener("click", () => { this.count++; this.dispatch(); this.render(); });
+          this.target.getElementById("dec")?.addEventListener("click", () => { this.count--; this.dispatch(); this.render(); });
+          this.dispatch();
+        }
+        dispatch() { this.props.__emit?.("count-changed", { count: this.count }); }
+        $set(props) { this.props = { ...this.props, ...props }; this.render(); }
+        $destroy() { this.target.innerHTML = ""; }
+      }
+
+      defineSvelteComponent("sv-counter", SvelteCounter, { attrs: { label: "string", initialCount: "number" } });
+      el.textContent = "✅ registered";
+    } catch (e) {
+      el.textContent = "❌ Svelte failed";
+      console.warn("Svelte load error:", e);
+    }
+  </script>
+
+  <!-- ==== Vue ==== -->
+  <script type="module">
+    const el = document.getElementById("status-vu");
+    try {
+      const { createApp, h } = await import("https://esm.sh/vue@3");
+      const { defineVueComponent, registerVueRuntime } = await import("./wc-bridge-js/src/vue-adapter.js");
+      registerVueRuntime({ createApp, h });
+
+      const VueCounter = {
+        props: ["label", "initialCount", "__emit"],
+        setup(props) {
+          let count = Number(props.initialCount);
+          return () => h("div", { style: "padding: 8px; border: 1px dashed #94a3b8; border-radius: var(--wc-radius)" }, [
+            h("h3", null, props.label),
+            h("p", null, `Count: ${count}`),
+            h("button", { onClick: () => { count++; props.__emit("count-changed", { count }); }, style: "margin: 4px" }, "+1"),
+            h("button", { onClick: () => { count--; props.__emit("count-changed", { count }); }, style: "margin: 4px" }, "-1"),
+          ]);
+        },
       };
+
+      defineVueComponent("vu-counter", VueCounter, { attrs: { label: "string", initialCount: "number" } });
+      el.textContent = "✅ registered";
+    } catch (e) {
+      el.textContent = "❌ Vue failed (network to esm.sh needed)";
+      console.warn("Vue load error:", e);
     }
+  </script>
 
-    defineSolidComponent("sd-counter", SolidCounter, {
-      attrs: { label: "string", initial: "number" },
-    });
+  <!-- ==== SolidJS ==== -->
+  <script type="module">
+    const el = document.getElementById("status-sd");
+    try {
+      const { createSignal } = await import("https://esm.sh/solid-js@1.69.1");
+      const { defineSolidComponent, registerSolidRuntime } = await import("./wc-bridge-js/src/solid-adapter.js");
+      registerSolidRuntime({
+        render: (fn, target) => { const d = fn(target); return { unmount: () => typeof d === "function" && d() }; }
+      });
 
-    // --- Preact Adapter ---
-    import * as preact from "https://esm.sh/preact@10";
-    import { registerPreactRuntime, definePreactComponent } from "./wc-bridge-js/src/preact-adapter.js";
+      function SolidCounter(props) {
+        const [count, setCount] = createSignal(Number(props.initialCount));
+        const inc = () => { setCount((c) => c + 1); props.__emit("count-changed", { count: count() }); };
+        const dec = () => { setCount((c) => c - 1); props.__emit("count-changed", { count: count() }); };
+        return (target) => {
+          const update = () => {
+            target.innerHTML = `
+              <div style="padding: 8px; border: 1px dashed #94a3b8; border-radius: var(--wc-radius)">
+                <h3>${props.label}</h3><p>Count: ${count()}</p>
+                <button id="inc" style="margin: 4px">+1</button>
+                <button id="dec" style="margin: 4px">-1</button>
+              </div>`;
+            target.getElementById("inc")?.addEventListener("click", inc);
+            target.getElementById("dec")?.addEventListener("click", dec);
+          };
+          update();
+          const unsub = count.subscribe(update);
+          return () => unsub();
+        };
+      }
 
-    registerPreactRuntime(preact, (node) => ({ unmount: () => { node.innerHTML = "" } }));
-
-    function PreactCounter(props) {
-      const [count, setCount] = preact.useState(Number(props.initial));
-      props.__emit("count-changed", { count });
-
-      return preact.h(
-        "div",
-        { style: "padding: 8px; border: 1px dashed #94a3b8; border-radius: var(--wc-radius)" },
-        preact.h("h3", null, props.label),
-        preact.h("p", null, `Count: ${count}`),
-        preact.h("button", { onClick: () => setCount(count + 1), style: "margin: 4px" }, "+1"),
-        preact.h("button", { onClick: () => setCount(count - 1), style: "margin: 4px" }, "-1")
-      );
+      defineSolidComponent("sd-counter", SolidCounter, { attrs: { label: "string", initialCount: "number" } });
+      el.textContent = "✅ registered";
+    } catch (e) {
+      el.textContent = "❌ SolidJS failed (network to esm.sh needed)";
+      console.warn("SolidJS load error:", e);
     }
+  </script>
 
-    definePreactComponent("pc-counter", PreactCounter, {
-      attrs: { label: "string", initial: "number" },
-    });
+  <!-- ==== Preact ==== -->
+  <script type="module">
+    const el = document.getElementById("status-pc");
+    try {
+      const preact = await import("https://esm.sh/preact@10");
+      const { definePreactComponent, registerPreactRuntime } = await import("./wc-bridge-js/src/preact-adapter.js");
+      registerPreactRuntime(preact, (node) => ({ unmount: () => { node.innerHTML = "" } }));
 
-    // --- Live attribute updates ---
+      function PreactCounter(props) {
+        const [count, setCount] = preact.useState(Number(props.initialCount));
+        props.__emit("count-changed", { count });
+        return preact.h(
+          "div",
+          { style: "padding: 8px; border: 1px dashed #94a3b8; border-radius: var(--wc-radius)" },
+          preact.h("h3", null, props.label),
+          preact.h("p", null, `Count: ${count}`),
+          preact.h("button", { onClick: () => setCount(count + 1), style: "margin: 4px" }, "+1"),
+          preact.h("button", { onClick: () => setCount(count - 1), style: "margin: 4px" }, "-1")
+        );
+      }
+
+      definePreactComponent("pc-counter", PreactCounter, { attrs: { label: "string", initialCount: "number" } });
+      el.textContent = "✅ registered";
+    } catch (e) {
+      el.textContent = "❌ Preact failed (network to esm.sh needed)";
+      console.warn("Preact load error:", e);
+    }
+  </script>
+
+  <!-- ==== Live attribute updates (works regardless of framework) ==== -->
+  <script>
     const inputs = {
       countInput: document.getElementById("countInput"),
       labelInput: document.getElementById("labelInput"),
     };
-
     function updateAttr(name, attr) {
       const val = inputs[name].value;
       document.querySelectorAll("[initial-count], [label]").forEach((el) => {
         if (el.id.includes("demo")) el.setAttribute(attr, val);
       });
     }
-
     Object.keys(inputs).forEach((key) => {
-      inputs[key].addEventListener("input", (e) => {
+      inputs[key].addEventListener("input", () => {
         if (key === "countInput") updateAttr("countInput", "initial-count");
         if (key === "labelInput") updateAttr("labelInput", "label");
       });
