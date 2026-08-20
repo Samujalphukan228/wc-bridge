@@ -17,24 +17,7 @@
 //     attrs: { label: "string", initial: "number" },
 //   });
 
-const CSS_VARS = ["--wc-color-primary", "--wc-color-text", "--wc-radius", "--wc-font"];
-
-// CONTRACT.md: camelCase prop -> kebab-case attribute ("initialCount" -> "initial-count")
-function kebab(s) {
-  return s.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
-}
-
-function coerce(raw, kind) {
-  if (raw === null) return kind === "boolean" ? false : undefined;
-  switch (kind) {
-    case "number":
-      return Number(raw);
-    case "boolean":
-      return raw === "true" || raw === "";
-    default:
-      return raw;
-  }
-}
+import { coerce, attrFor, cssVarStyle } from "./internal.js";
 
 let _vueRuntime;
 
@@ -44,8 +27,8 @@ function vueRuntime() {
 }
 
 export function defineVueComponent(tag, VueComponent, { attrs = {}, useShadow = true } = {}) {
-  const attrFor = Object.fromEntries(Object.keys(attrs).map((p) => [p, kebab(p)]));
-  const attrNames = Object.values(attrFor);
+  const attrForMap = attrFor(attrs);
+  const attrNames = Object.values(attrForMap);
 
   class VueWebComponent extends HTMLElement {
     static get observedAttributes() {
@@ -55,16 +38,14 @@ export function defineVueComponent(tag, VueComponent, { attrs = {}, useShadow = 
     connectedCallback() {
       if (this._app) return;
 
-      const { createApp, h, reactive } = vueRuntime();
+      const { createApp, h } = vueRuntime();
       if (!createApp) return;
 
       this._mountNode = useShadow ? this.attachShadow({ mode: "open" }) : this;
 
       // Forward CSS vars into shadow root for theming consistency
       if (useShadow) {
-        const style = this._mountNode.ownerDocument.createElement("style");
-        style.textContent = `:host { ${CSS_VARS.map((v) => `${v}: inherit;`).join(" ")} }`;
-        this._mountNode.appendChild(style);
+        this._mountNode.appendChild(cssVarStyle(this._mountNode.ownerDocument));
       }
 
       const mountPoint = this._mountNode.ownerDocument.createElement("div");
@@ -75,15 +56,19 @@ export function defineVueComponent(tag, VueComponent, { attrs = {}, useShadow = 
         self.dispatchEvent(new CustomEvent(name, { detail }));
 
       // Create a simple wrapper that renders the Vue component directly
-      const app = createApp({
-        render: () => h(VueComponent, {
-          ...self._readProps(),
-          __emit: emit
-        })
-      });
+      try {
+        const app = createApp({
+          render: () => h(VueComponent, {
+            ...self._readProps(),
+            __emit: emit
+          })
+        });
 
-      this._app = app;
-      app.mount(mountPoint);
+        this._app = app;
+        app.mount(mountPoint);
+      } catch (err) {
+        console.error(`[wc-bridge:vue] failed to mount <${tag}>`, err);
+      }
     }
 
     attributeChangedCallback() {
@@ -109,7 +94,7 @@ export function defineVueComponent(tag, VueComponent, { attrs = {}, useShadow = 
 
     _readProps() {
       const props = {};
-      for (const [prop, attr] of Object.entries(attrFor)) {
+      for (const [prop, attr] of Object.entries(attrForMap)) {
         props[prop] = coerce(this.getAttribute(attr), attrs[prop]);
       }
       return props;

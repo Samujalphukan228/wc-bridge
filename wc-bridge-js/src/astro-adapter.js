@@ -26,7 +26,7 @@
 export function astroComponentProps(values, options = {}) {
   const attrMap = {};
 
-  for (const [propName, type] of Object.entries(options.attrs || {})) {
+  for (const [propName] of Object.entries(options.attrs || {})) {
     // Convert camelCase prop name to kebab-case attribute name
     const attrName = propName.replace(/([A-Z])/g, "-$1").toLowerCase();
 

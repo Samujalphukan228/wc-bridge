@@ -1,4 +1,18 @@
-target/
+# Node
 node_modules/
-*.wasm
+npm-debug.log*
+
+# Rust / WASM
+target/
+*.wbg.js
+!examples/lx-counter/www/lx_counter_bg_bg.wasm
+!examples/lx-counter/www/lx_counter_bg.wasm
+
+# Build output (published via npm `files`, never committed)
 dist/
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+*.swp

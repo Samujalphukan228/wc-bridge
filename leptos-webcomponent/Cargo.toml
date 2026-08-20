@@ -1,7 +1,14 @@
 [package]
 name = "leptos-webcomponent"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
+description = "Leptos components as standards-compliant web components with one shared contract (kebab-case attrs in, CustomEvents out, shared CSS vars)."
+license = "MIT"
+readme = "../README.md"
+repository = "https://github.com/example/wc-bridge"
+keywords = ["leptos", "web-components", "custom-elements", "wasm"]
+categories = ["web-programming", "wasm"]
+rust-version = "1.70"
 
 [dependencies]
 leptos = { version = "0.6", features = ["csr"] }

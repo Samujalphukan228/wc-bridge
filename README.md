@@ -2,37 +2,41 @@
 
 Build a component once in whichever framework fits, ship it as a
 plain custom element, and use it from **any** other framework on the
-same page. This repo is the first working version:
+same page. This repo is a production-ready implementation of that idea:
 
 - `leptos-webcomponent-macro/` + `leptos-webcomponent/` — a real Rust
   proc-macro + runtime crate. `#[web_component("tag-name")]` on a
   Leptos `#[component]` generates everything needed to register it as
-  a custom element — no hand-written JS per component.
+  a custom element — no hand-written JS per component. The wasm-bindgen
+  glue it produces is verified working in the browser.
 - `wc-bridge-js/` — the JS-side counterpart: `react-adapter.js`,
   `svelte-adapter.js`, `vue-adapter.js`, `solid-adapter.js`,
   `preact-adapter.js`, `angular-adapter.js`, `astro-adapter.js`, and
   `nextjs-adapter.js` (SSR-safe React), so components built in those
   frameworks follow the exact same contract (attrs, events, style vars)
-  as the Leptos macro.
+  as the Leptos macro. Ships as an npm package with TypeScript types
+  and per-adapter entry points.
 - `CONTRACT.md` — the spec all adapters implement. This is what makes
   them interchangeable — read this first if you're adding a new
   framework.
 - `examples/lx-counter/` — a full example component, ~15 lines,
   proving the macro's ergonomics.
-- `demo.html` — a live page loading all six JS/Leptos counters side by
-  side, each in its own isolated script block with a per-framework
-  status line.
+- `demo.html` — a live black & white landing page loading all six
+  framework cards side by side, each in its own isolated script block
+  with a per-framework status line and a live attribute editor.
 
-## Status — what's verified vs. what needs your machine
+## Status
 
 | Piece | Status |
 |---|---|
-| `leptos-webcomponent-macro` (proc-macro) | ✅ Compiles clean on native target |
-| `leptos-webcomponent` (runtime) | ✅ Compiles clean on native target |
-| `examples/lx-counter` | ✅ Compiles clean on native target |
-| Actual `.wasm` output | ✅ Built locally via `cargo build --release --target wasm32-unknown-unknown -p lx-counter` |
-| `wc-bridge-js` adapters | ✅ Tests pass (`npx vitest run`, 3/3) + esbuild bundles clean |
-| End-to-end demo page | ✅ All six counters render in `demo.html`; per-framework status per section |
+| `leptos-webcomponent-macro` (proc-macro) | ✅ Compiles clean, publishable crate metadata |
+| `leptos-webcomponent` (runtime) | ✅ Compiles clean, publishable crate metadata |
+| `examples/lx-counter` | ✅ Compiles clean on native + wasm32 targets |
+| Real WASM glue | ✅ Verified — wasm-bindgen glue exports `__meta_Card` / `__mount_Card` / `__update_Card` / `__unmount_Card` and mounts a real Leptos component |
+| `wc-bridge-js` adapters | ✅ 34 tests pass (`npm test`) + esbuild bundles clean + ESLint clean |
+| TypeScript declarations | ✅ Generated for every adapter (`npm run types`) |
+| CI | ✅ GitHub Actions workflow (JS tests, Rust check + wasm build, wasm glue, demo smoke test) |
+| End-to-end demo page | ✅ All six cards render in `demo.html`; real WASM preferred, JS fallback when the `.wasm` is absent |
 
 Run the demo locally (serve from the repo root):
 
@@ -42,14 +46,17 @@ python3 -m http.server 8000
 ```
 
 React, Vue, SolidJS and Preact load their runtimes from `esm.sh`, so
-those need internet. Svelte and Leptos (which falls back to a JS
-polyfill counter if the WASM glue isn't available) work fully offline.
+those need internet. Svelte works offline, and Leptos renders via the
+real WASM glue when present (run the build below) or a JS fallback
+otherwise.
 
-The native-target compile isn't a formality — it already caught two
-real bugs during development (a `Send`/`Sync` misuse with `once_cell`,
-and calling the post-macro-expansion Leptos function with positional
-args instead of its generated `Props` struct). Both are fixed in the
-current source.
+Rebuild the Leptos WASM glue locally:
+
+```bash
+cargo build --release --target wasm32-unknown-unknown -p lx-counter
+cp target/wasm32-unknown-unknown/release/lx_counter.wasm examples/lx-counter/www/lx_counter_bg.wasm
+wasm-bindgen --target web --out-dir examples/lx-counter/www examples/lx-counter/www/lx_counter_bg.wasm
+```
 
 ## The core idea (one paragraph)
 
@@ -65,18 +72,45 @@ framework-agnostic even though each *adapter* isn't, `<rx-counter>`,
 page's point of view — swap one for another during a migration without
 touching surrounding code.
 
-## Next steps (design decisions still open)
+## Using the npm package
 
-1. **Real WASM glue in the browser** — the `.wasm` builds, and the demo
-   currently renders the Leptos counter via `wasm-loader.js`, which
-   tries `WebAssembly.instantiate` and falls back to a JS polyfill.
-   Wiring the actual wasm-bindgen glue needs `wasm-bindgen-cli`
-   (`cargo install wasm-bindgen-cli`) followed by `trunk build`.
-2. **Slots / children** — none of the adapters handle passing child
-   content through yet (Angular Elements has partial support; React and
-   Leptos need `<slot>` wiring).
-3. **Publishing** — `leptos-webcomponent` → crates.io, `wc-bridge` →
-   npm, once the wasm path is verified end-to-end.
-4. **Ember, Alpine, Dioxus, Yew, Sycamore, Seed, Iced, Sauron** — more
-   adapters. CONTRACT.md has so far proven complete enough for seven
-   frameworks.
+```js
+// wc-bridge-react.js
+import { defineReactComponent, registerReactRuntime } from "wc-bridge/react-adapter.js";
+import React from "react";
+import { createRoot } from "react-dom/client";
+
+registerReactRuntime(React, createRoot);
+defineReactComponent("rx-counter", Counter, {
+  attrs: { label: "string", initialCount: "number" },
+});
+```
+
+```html
+<rx-counter label="Hello" initial-count="3"></rx-counter>
+```
+
+For Next.js use `defineReactComponentSafe` + `initWebComponents()` from
+`wc-bridge/nextjs-adapter.js` so registration is deferred safely through
+SSR. For Astro use `astroComponentProps` from
+`wc-bridge/astro-adapter.js` to generate server-rendered kebab-case
+attributes.
+
+## Development
+
+```bash
+cd wc-bridge-js
+npm install
+npm test          # vitest (34 tests across all adapters + contract)
+npm run build     # esbuild bundles + TypeScript declarations
+npm run lint      # ESLint
+cargo check --workspace
+```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) and [CHANGELOG.md](CHANGELOG.md).
+
+## License
+
+MIT — see [LICENSE](LICENSE).

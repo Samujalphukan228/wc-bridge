@@ -15,28 +15,11 @@
 //     attrs: { label: "string", initial: "number" },
 //   });
 
-const CSS_VARS = ["--wc-color-primary", "--wc-color-text", "--wc-radius", "--wc-font"];
-
-// CONTRACT.md: camelCase prop -> kebab-case attribute ("initialCount" -> "initial-count")
-function kebab(s) {
-  return s.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
-}
-
-function coerce(raw, kind) {
-  if (raw === null) return kind === "boolean" ? false : undefined;
-  switch (kind) {
-    case "number":
-      return Number(raw);
-    case "boolean":
-      return raw === "true" || raw === "";
-    default:
-      return raw;
-  }
-}
+import { coerce, attrFor, cssVarStyle } from "./internal.js";
 
 export function defineSvelteComponent(tag, SvelteComponent, { attrs = {}, useShadow = true } = {}) {
-  const attrFor = Object.fromEntries(Object.keys(attrs).map((p) => [p, kebab(p)]));
-  const attrNames = Object.values(attrFor);
+  const attrForMap = attrFor(attrs);
+  const attrNames = Object.values(attrForMap);
 
   class SvelteWebComponent extends HTMLElement {
     static get observedAttributes() {
@@ -51,16 +34,18 @@ export function defineSvelteComponent(tag, SvelteComponent, { attrs = {}, useSha
         // this component themes the same way a Leptos/Angular sibling
         // would, via inherited custom properties.
         if (useShadow) {
-          const style = this._mountNode.ownerDocument.createElement("style");
-          style.textContent = `:host { ${CSS_VARS.map((v) => `${v}: inherit;`).join(" ")} }`;
-          this._mountNode.appendChild(style);
+          this._mountNode.appendChild(cssVarStyle(this._mountNode.ownerDocument));
         }
 
         // Svelte components get props via constructor target + props pattern
-        this._component = new SvelteComponent({
-          target: this._mountNode,
-          props: this._readProps(),
-        });
+        try {
+          this._component = new SvelteComponent({
+            target: this._mountNode,
+            props: this._readProps(),
+          });
+        } catch (err) {
+          console.error(`[wc-bridge:svelte] failed to mount <${tag}>`, err);
+        }
       }
     }
 
@@ -80,7 +65,7 @@ export function defineSvelteComponent(tag, SvelteComponent, { attrs = {}, useSha
 
     _readProps() {
       const props = {};
-      for (const [prop, attr] of Object.entries(attrFor)) {
+      for (const [prop, attr] of Object.entries(attrForMap)) {
         props[prop] = coerce(this.getAttribute(attr), attrs[prop]);
       }
 

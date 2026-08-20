@@ -1,15 +1,103 @@
 {
   "name": "wc-bridge",
-  "version": "0.1.0",
-  "description": "Wraps React and Angular components as custom elements following the same attribute/event/style contract used by the leptos-webcomponent crate.",
-  "main": "src/index.js",
+  "version": "1.0.0",
+  "description": "Framework-agnostic web components. Build once in React, Svelte, Vue, SolidJS, Preact, Angular, Leptos \u2014 ship as plain custom elements with one shared contract (kebab-case attrs in, CustomEvents out, shared CSS vars).",
   "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "types/index.d.ts",
+  "files": [
+    "dist",
+    "src",
+    "types",
+    "README.md",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./types/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./react-adapter.js": {
+      "types": "./types/react-adapter.d.ts",
+      "import": "./dist/react-adapter.js",
+      "default": "./dist/react-adapter.js"
+    },
+    "./nextjs-adapter.js": {
+      "types": "./types/nextjs-adapter.d.ts",
+      "import": "./dist/nextjs-adapter.js",
+      "default": "./dist/nextjs-adapter.js"
+    },
+    "./svelte-adapter.js": {
+      "types": "./types/svelte-adapter.d.ts",
+      "import": "./dist/svelte-adapter.js",
+      "default": "./dist/svelte-adapter.js"
+    },
+    "./vue-adapter.js": {
+      "types": "./types/vue-adapter.d.ts",
+      "import": "./dist/vue-adapter.js",
+      "default": "./dist/vue-adapter.js"
+    },
+    "./solid-adapter.js": {
+      "types": "./types/solid-adapter.d.ts",
+      "import": "./dist/solid-adapter.js",
+      "default": "./dist/solid-adapter.js"
+    },
+    "./preact-adapter.js": {
+      "types": "./types/preact-adapter.d.ts",
+      "import": "./dist/preact-adapter.js",
+      "default": "./dist/preact-adapter.js"
+    },
+    "./angular-adapter.js": {
+      "types": "./types/angular-adapter.d.ts",
+      "import": "./dist/angular-adapter.js",
+      "default": "./dist/angular-adapter.js"
+    },
+    "./astro-adapter.js": {
+      "types": "./types/astro-adapter.d.ts",
+      "import": "./dist/astro-adapter.js",
+      "default": "./dist/astro-adapter.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": [
+    "**/*.test.js"
+  ],
   "scripts": {
-    "build": "esbuild src/index.js --bundle --format=esm --platform=neutral --outfile=dist/index.js",
-    "test": "vitest run"
+    "build": "node scripts/build.mjs && npm run types",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "types": "tsc -p tsconfig.types.json",
+    "lint": "eslint src test scripts --max-warnings=0",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm test && npm run build"
+  },
+  "keywords": [
+    "web-components",
+    "custom-elements",
+    "framework-agnostic",
+    "react",
+    "svelte",
+    "vue",
+    "solidjs",
+    "preact",
+    "angular",
+    "leptos",
+    "astro",
+    "nextjs"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "esbuild": "^0.21.5",
+    "eslint": "^9.39.5",
+    "globals": "^17.11.0",
+    "jsdom": "^30.0.1",
+    "typescript": "^5.4.0",
     "vitest": "^1.3.0"
   }
 }

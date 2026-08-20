@@ -1,7 +1,14 @@
 [package]
 name = "leptos-webcomponent-macro"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
+description = "Proc macro that turns Leptos components into standards-compliant web components (part of leptos-webcomponent)."
+license = "MIT"
+readme = "../README.md"
+repository = "https://github.com/example/wc-bridge"
+keywords = ["leptos", "web-components", "custom-elements", "wasm", "proc-macro"]
+categories = ["web-programming", "wasm"]
+rust-version = "1.70"
 
 [lib]
 proc-macro = true

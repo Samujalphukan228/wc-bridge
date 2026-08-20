@@ -274,7 +274,7 @@
     try {
       const { registerAll } = await import("./examples/lx-counter/www/webcomponent-runtime.js");
       const { loadLeptosWASM } = await import("./examples/lx-counter/www/wasm-loader.js");
-      const wasm = await loadLeptosWASM("./examples/lx-counter/www/lx_counter_bg.wasm");
+      const wasm = await loadLeptosWASM();
       registerAll(wasm, ["__meta_Card"]);
       el.textContent = "✅ registered";
     } catch (e) {

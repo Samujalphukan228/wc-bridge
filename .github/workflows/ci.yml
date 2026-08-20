@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+jobs:
+  js:
+    name: JS (tests + types + bundle)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: wc-bridge-js
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: wc-bridge-js/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: npx tsc -p tsconfig.types.json
+
+  rust:
+    name: Rust (workspace check + wasm build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+          override: true
+      - run: cargo check --workspace
+      - run: cargo build --release --target wasm32-unknown-unknown -p lx-counter
+
+  wasm-glue:
+    name: WASM glue (wasm-bindgen)
+    runs-on: ubuntu-latest
+    needs: rust
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+          override: true
+      - uses: jetli/wasm-bindgen-action@v0.2.0
+        with:
+          version: "0.2.100"
+      - run: |
+          cargo build --release --target wasm32-unknown-unknown -p lx-counter
+          mkdir -p examples/lx-counter/www
+          cp target/wasm32-unknown-unknown/release/lx_counter.wasm examples/lx-counter/www/lx_counter_bg.wasm
+          wasm-bindgen --target web --out-dir examples/lx-counter/www examples/lx-counter/www/lx_counter_bg.wasm
+      - name: Verify exports
+        run: |
+          test -f examples/lx-counter/www/lx_counter_bg.wasm
+          test -f examples/lx-counter/www/lx_counter.js
+          grep -q "__meta_Card" examples/lx-counter/www/lx_counter.js
+
+  demo:
+    name: Demo smoke test
+    runs-on: ubuntu-latest
+    needs: js
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: wc-bridge-js/package-lock.json
+      - run: cd wc-bridge-js && npm ci
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Serve + smoke check
+        run: |
+          python3 -m http.server 8137 >/dev/null 2>&1 &
+          sleep 2
+          curl -fsS http://localhost:8137/demo.html | grep -q "<lx-card"
+          curl -fsS http://localhost:8137/demo.html | grep -q "<rx-card"
+          curl -fsS http://localhost:8137/demo.html | grep -q "<pc-card"
+          echo "demo.html serves all six framework tags OK"

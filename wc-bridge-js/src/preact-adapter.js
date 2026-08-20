@@ -17,35 +17,13 @@
 //     attrs: { label: "string", initial: "number" },
 //   });
 
-const CSS_VARS = ["--wc-color-primary", "--wc-color-text", "--wc-radius", "--wc-font"];
-
-// CONTRACT.md: camelCase prop -> kebab-case attribute ("initialCount" -> "initial-count")
-function kebab(s) {
-  return s.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
-}
-
-function coerce(raw, kind) {
-  if (raw === null) return kind === "boolean" ? false : undefined;
-  switch (kind) {
-    case "number":
-      return Number(raw);
-    case "boolean":
-      return raw === "true" || raw === "";
-    default:
-      return raw;
-  }
-}
-
-function preactCreateElement(...args) {
-  if (!_preact) _preact = globalThis.__wcPreact;
-  return _preact.createElement(...args);
-}
+import { coerce, attrFor, cssVarStyle } from "./internal.js";
 
 let _preact, _renderFn;
 
 export function definePreactComponent(tag, PreactComponent, { attrs = {}, useShadow = true } = {}) {
-  const attrFor = Object.fromEntries(Object.keys(attrs).map((p) => [p, kebab(p)]));
-  const attrNames = Object.values(attrFor);
+  const attrForMap = attrFor(attrs);
+  const attrNames = Object.values(attrForMap);
 
   class PreactWebComponent extends HTMLElement {
     static get observedAttributes() {
@@ -58,9 +36,7 @@ export function definePreactComponent(tag, PreactComponent, { attrs = {}, useSha
 
         // Forward CSS vars into shadow root for theming consistency
         if (useShadow) {
-          const style = this._mountNode.ownerDocument.createElement("style");
-          style.textContent = `:host { ${CSS_VARS.map((v) => `${v}: inherit;`).join(" ")} }`;
-          this._mountNode.appendChild(style);
+          this._mountNode.appendChild(cssVarStyle(this._mountNode.ownerDocument));
         }
 
         const mountPoint = this._mountNode.ownerDocument.createElement("div");
@@ -86,7 +62,7 @@ export function definePreactComponent(tag, PreactComponent, { attrs = {}, useSha
 
     _readProps() {
       const props = {};
-      for (const [prop, attr] of Object.entries(attrFor)) {
+      for (const [prop, attr] of Object.entries(attrForMap)) {
         props[prop] = coerce(this.getAttribute(attr), attrs[prop]);
       }
 
@@ -105,9 +81,13 @@ export function definePreactComponent(tag, PreactComponent, { attrs = {}, useSha
       const { createElement } = globalThis.__wcPreact || _preact;
       if (!createElement) return;
 
-      // Preact uses a similar createRoot pattern to React 18
-      const root = render(createElement(PreactComponent, props), this._mountPoint);
-      this._root = { unmount: root };
+      try {
+        // Preact uses a similar createRoot pattern to React 18
+        const root = render(createElement(PreactComponent, props), this._mountPoint);
+        this._root = { unmount: root };
+      } catch (err) {
+        console.error(`[wc-bridge:preact] failed to mount <${tag}>`, err);
+      }
     }
   }
 

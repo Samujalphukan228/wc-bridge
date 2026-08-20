@@ -17,24 +17,7 @@
 //     attrs: { label: "string", initial: "number" },
 //   });
 
-const CSS_VARS = ["--wc-color-primary", "--wc-color-text", "--wc-radius", "--wc-font"];
-
-// CONTRACT.md: camelCase prop -> kebab-case attribute ("initialCount" -> "initial-count")
-function kebab(s) {
-  return s.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
-}
-
-function coerce(raw, kind) {
-  if (raw === null) return kind === "boolean" ? false : undefined;
-  switch (kind) {
-    case "number":
-      return Number(raw);
-    case "boolean":
-      return raw === "true" || raw === "";
-    default:
-      return raw;
-  }
-}
+import { coerce, attrFor, cssVarStyle } from "./internal.js";
 
 let _solidRuntime;
 
@@ -44,8 +27,8 @@ function solidRuntime() {
 }
 
 export function defineSolidComponent(tag, Component, { attrs = {}, useShadow = true } = {}) {
-  const attrFor = Object.fromEntries(Object.keys(attrs).map((p) => [p, kebab(p)]));
-  const attrNames = Object.values(attrFor);
+  const attrForMap = attrFor(attrs);
+  const attrNames = Object.values(attrForMap);
 
   class SolidWebComponent extends HTMLElement {
     static get observedAttributes() {
@@ -62,9 +45,7 @@ export function defineSolidComponent(tag, Component, { attrs = {}, useShadow = t
 
       // Forward CSS vars into shadow root for theming consistency
       if (useShadow) {
-        const style = this._mountNode.ownerDocument.createElement("style");
-        style.textContent = `:host { ${CSS_VARS.map((v) => `${v}: inherit;`).join(" ")} }`;
-        this._mountNode.appendChild(style);
+        this._mountNode.appendChild(cssVarStyle(this._mountNode.ownerDocument));
       }
 
       const mountPoint = this._mountNode.ownerDocument.createElement("div");
@@ -72,11 +53,14 @@ export function defineSolidComponent(tag, Component, { attrs = {}, useShadow = t
 
       this._mountPoint = mountPoint;
 
-      const self = this;
       const props = this._readProps();
 
       // SolidJS render with reactive props
-      this._dispose = render(() => Component(props), mountPoint);
+      try {
+        this._dispose = render(() => Component(props), mountPoint);
+      } catch (err) {
+        console.error(`[wc-bridge:solid] failed to mount <${tag}>`, err);
+      }
     }
 
     attributeChangedCallback() {
@@ -98,7 +82,7 @@ export function defineSolidComponent(tag, Component, { attrs = {}, useShadow = t
 
     _readProps() {
       const props = {};
-      for (const [prop, attr] of Object.entries(attrFor)) {
+      for (const [prop, attr] of Object.entries(attrForMap)) {
         props[prop] = coerce(this.getAttribute(attr), attrs[prop]);
       }
 
