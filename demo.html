@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Multi-FW Web Components Demo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body {
+      font-family: var(--wc-font, system-ui, sans-serif);
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 0 1rem;
+      --wc-color-primary: #2563eb;
+      --wc-color-text: #1e293b;
+      --wc-radius: 8px;
+    }
+
+    h1 { color: var(--wc-color-text); }
+
+    section {
+      margin: 24px 0;
+      padding: 16px;
+      border: 1px solid #e2e8f0;
+      border-radius: var(--wc-radius);
+    }
+
+    label {
+      display: block;
+      margin: 8px 0;
+    }
+
+    code {
+      background: #f1f5f9;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+  </style>
+</head>
+<body>
+  <h1>🌐 Multi-Framework Web Components</h1>
+  <p>All components follow the <a href="CONTRACT.md">same contract</a> — interchangeable via HTML attributes.</p>
+
+  <label>initial-count: <input id="countInput" type="number" value="5" min="0" /></label>
+  <label>label: <input id="labelInput" type="text" value="Counter" /></label>
+
+  <section>
+    <h2>Leptos (Rust → WASM) <code>&lt;lx-counter&gt;</code></h2>
+    <lx-counter id="lx-demo" initial-count="5" label="Counter"></lx-counter>
+  </section>
+
+  <section>
+    <h2>React <code>&lt;rx-counter&gt;</code></h2>
+    <rx-counter id="rx-demo" initial-count="5" label="Counter"></rx-counter>
+  </section>
+
+  <section>
+    <h2>Svelte <code>&lt;sv-counter&gt;</code></h2>
+    <sv-counter id="sv-demo" initial-count="5" label="Counter"></sv-counter>
+  </section>
+
+  <section>
+    <h2>Vue <code>&lt;vu-counter&gt;</code></h2>
+    <vu-counter id="vu-demo" initial-count="5" label="Counter"></vu-counter>
+  </section>
+
+  <script type="module">
+    // --- React Adapter ---
+    import { createRoot } from "https://esm.sh/react-dom@18/client";
+    import React from "https://esm.sh/react@18";
+    import {
+      defineReactComponent,
+      registerReactRuntime,
+    } from "./wc-bridge-js/src/react-adapter.js";
+
+    registerReactRuntime(React, createRoot);
+
+    function ReactCounter({ label, initial, __emit }) {
+      const [count, setCount] = React.useState(Number(initial));
+
+      React.useEffect(() => {
+        __emit("count-changed", { count });
+      }, [count]);
+
+      return React.createElement(
+        "div",
+        { style: "padding: 8px; border: 1px dashed #94a3b8; border-radius: var(--wc-radius)" },
+        React.createElement("h3", null, label),
+        React.createElement("p", null, `Count: ${count}`),
+        React.createElement(
+          "button",
+          { onClick: () => setCount((c) => c + 1), style: "margin: 4px" },
+          "+1"
+        ),
+        React.createElement(
+          "button",
+          { onClick: () => setCount((c) => c - 1), style: "margin: 4px" },
+          "-1"
+        )
+      );
+    }
+
+    defineReactComponent("rx-counter", ReactCounter, {
+      attrs: { label: "string", initial: "number" },
+    });
+
+    // --- Svelte Adapter ---
+    import { defineSvelteComponent } from "./wc-bridge-js/src/svelte-adapter.js";
+
+    // Minimal inline Svelte-like component constructor
+    class SvelteCounter {
+      constructor({ target, props }) {
+        this.target = target;
+        this.props = props;
+        this.count = Number(props.initial) || 0;
+        this.render();
+      }
+
+      render() {
+        this.target.innerHTML = `
+          <div style="padding: 8px; border: 1px dashed #94a3b8; border-radius: var(--wc-radius)">
+            <h3>${this.props.label}</h3>
+            <p>Count: ${this.count}</p>
+            <button id="inc" style="margin: 4px">+1</button>
+            <button id="dec" style="margin: 4px">-1</button>
+          </div>
+        `;
+
+        this.target.getElementById("inc")?.addEventListener("click", () => {
+          this.count++;
+          this.dispatch();
+          this.render();
+        });
+        this.target.getElementById("dec")?.addEventListener("click", () => {
+          this.count--;
+          this.dispatch();
+          this.render();
+        });
+
+        this.dispatch();
+      }
+
+      dispatch() {
+        if (this.props.__emit) {
+          this.props.__emit("count-changed", { count: this.count });
+        }
+      }
+
+      $set(props) {
+        this.props = { ...this.props, ...props };
+        this.render();
+      }
+
+      $destroy() {
+        this.render(); // clear target
+        this.target.innerHTML = "";
+      }
+    }
+
+    defineSvelteComponent("sv-counter", SvelteCounter, {
+      attrs: { label: "string", initial: "number" },
+    });
+
+    // --- Vue Adapter ---
+    import { createApp, h } from "https://esm.sh/vue@3";
+    import { defineVueComponent } from "./wc-bridge-js/src/vue-adapter.js";
+
+    const VueCounter = {
+      name: "VueCounter",
+      props: ["label", "initial", "__emit"],
+      data() {
+        return { count: Number(this.initial) };
+      },
+      template: `
+        <div style="padding: 8px; border: 1px dashed #94a3b8; border-radius: var(--wc-radius)">
+          <h3>{{ label }}</h3>
+          <p>Count: {{ count }}</p>
+          <button @click="count++" style="margin: 4px">+1</button>
+          <button @click="count--" style="margin: 4px">-1</button>
+        </div>
+      `,
+    };
+
+    defineVueComponent("vu-counter", VueCounter, {
+      attrs: { label: "string", initial: "number" },
+    });
+
+    // --- Live attribute updates ---
+    const inputs = {
+      countInput: document.getElementById("countInput"),
+      labelInput: document.getElementById("labelInput"),
+    };
+
+    function updateAttr(name, attr) {
+      const val = inputs[name].value;
+      document.querySelectorAll("[initial-count], [label]").forEach((el) => {
+        if (el.id.includes("demo")) el.setAttribute(attr, val);
+      });
+    }
+
+    Object.keys(inputs).forEach((key) => {
+      inputs[key].addEventListener("input", (e) => {
+        if (key === "countInput") updateAttr("countInput", "initial-count");
+        if (key === "labelInput") updateAttr("labelInput", "label");
+      });
+    });
+  </script>
+</body>
+</html>

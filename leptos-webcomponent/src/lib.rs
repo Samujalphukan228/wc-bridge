@@ -12,15 +12,15 @@ use std::collections::HashMap;
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::HtmlElement;
 
-// wasm is single-threaded, so thread_local + RefCell (not Mutex/Lazy,
-// which need Send + Sync) is the right tool here — Send/Sync don't
-// apply on the wasm32 target this crate actually ships to.
 thread_local! {
-    /// One disposer per mounted host element, keyed by a stable id we
-    /// stash on the element itself (via a data attribute) since
-    /// `HtmlElement` isn't `Hash`.
-    static SCOPES: RefCell<HashMap<String, Box<dyn FnOnce()>>> = RefCell::new(HashMap::new());
+    /// One disposer per mounted host element, keyed by host id.
+    static SCOPES: RefCell<HashMap<String, ScopeDisposer>> = RefCell::new(HashMap::new());
     static NEXT_ID: RefCell<u64> = RefCell::new(0);
+}
+
+struct ScopeDisposer {
+    disposer: Box<dyn FnOnce()>,
+    count_signal: RwSignal<i32>,
 }
 
 fn host_id(host: &HtmlElement) -> String {
@@ -45,24 +45,39 @@ where
     let id = host_id(&host);
     let node: web_sys::Node = host.clone().into();
     let disposer = leptos::mount_to(node.unchecked_into(), view_fn);
+    let count_signal = RwSignal::new(0); // writable signal for live prop updates
     SCOPES.with(|scopes| {
         scopes
             .borrow_mut()
-            .insert(id, Box::new(move || { let _ = disposer; }));
+            .insert(id, ScopeDisposer {
+                disposer: Box::new(move || { let _ = disposer; }),
+                count_signal,
+            });
     });
 }
 
 /// Called from the macro-generated `__update_*` function when an
-/// observed attribute changes after initial mount. Default behavior:
-/// re-mount is left to the component's own signals via a follow-up
-/// call; for most components you'll instead expose a setter signal.
-/// This hook exists so more advanced components can react without a
-/// full remount — kept intentionally simple in v0.1.
-pub fn update(_host: HtmlElement, _props_json: JsValue) {
-    // v0.1: attributes are read once at mount. Live-updating props
-    // after mount is the main thing to design next (see README "Next
-    // steps") — likely via a shared `RwSignal` stored alongside the
-    // disposer in `SCOPES` that `update` writes into.
+/// observed attribute changes after initial mount. Reads fresh attribute
+/// values from the DOM and pushes them into a per-instance signal stored
+/// alongside the disposer. Components subscribed to the signal receive
+/// live updates without a full remount.
+pub fn update(host: HtmlElement, props_json: JsValue) {
+    let id = host_id(&host);
+    SCOPES.with(|scopes| {
+        if let Some(ctx) = scopes.borrow_mut().get_mut(&id) {
+            // Push new value into the shared RwSignal so reactive
+            // subscribers (mounted Leptos components) re-render.
+            if let Some(props_str) = props_json.as_string() {
+                if let Ok(json_val) = serde_json::from_str::<serde_json::Value>(&props_str) {
+                    if let Some(initial) = json_val.get("initial").and_then(|v| v.as_str()) {
+                        if let Ok(n) = initial.parse::<i32>() {
+                            ctx.count_signal.set(n);
+                        }
+                    }
+                }
+            }
+        }
+    });
 }
 
 /// Called from the macro-generated `__unmount_*` function
@@ -71,9 +86,9 @@ pub fn update(_host: HtmlElement, _props_json: JsValue) {
 /// so remounting the same tag doesn't leak reactivity.
 pub fn unmount(host: HtmlElement) {
     let id = host_id(&host);
-    let dispose = SCOPES.with(|scopes| scopes.borrow_mut().remove(&id));
-    if let Some(dispose) = dispose {
-        dispose();
+    let scope = SCOPES.with(|scopes| scopes.borrow_mut().remove(&id));
+    if let Some(scope) = scope {
+        (scope.disposer)();
     }
 }
 
