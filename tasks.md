@@ -22,9 +22,10 @@
    - ✅ `unmount()` refactored to handle new struct
 
 5. [x] Create end-to-end demo page
-   - ✅ `demo.html` demonstrates React, Svelte, Vue working together
+   - ✅ `demo.html` demonstrates Leptos, React, Svelte, Vue, SolidJS, Preact working together
    - ✅ Live attribute updates via input controls
    - ✅ Shared CSS var theming
+   - ✅ Per-framework isolation: separate `<script type=module>` block + status line each, so one failure no longer blanks the whole page
 
 ## Additional Frameworks
 6. [x] Solid.js adapter
@@ -41,4 +42,11 @@
 
 ## Ongoing
 9. [ ] Keep workspace build green (`cargo check` + `npm run build`)
-10. [ ] Update README/contract docs as new adapters are added
+   - ✅ Last check: both pass (workspace + esbuild bundle)
+10. [x] Update README/contract docs as new adapters are added
+    - ✅ README now lists all 9 adapters, current status table, demo instructions
+
+## Next candidates
+11. [ ] Install `wasm-bindgen-cli` + `trunk build` so the Leptos counter
+      renders real WASM in-browser instead of the JS fallback
+12. [ ] Publish: `leptos-webcomponent` → crates.io, `wc-bridge` → npm
