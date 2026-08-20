@@ -111,11 +111,11 @@
         React.useEffect(() => { __emit("count-changed", { count }); }, [count]);
         return React.createElement(
           "div",
-          { style: "padding: 8px; border: 1px dashed #94a3b8; border-radius: var(--wc-radius)" },
+          { style: { padding: "8px", border: "1px dashed #94a3b8", borderRadius: "var(--wc-radius)" } },
           React.createElement("h3", null, label),
           React.createElement("p", null, `Count: ${count}`),
-          React.createElement("button", { onClick: () => setCount((c) => c + 1), style: "margin: 4px" }, "+1"),
-          React.createElement("button", { onClick: () => setCount((c) => c - 1), style: "margin: 4px" }, "-1")
+          React.createElement("button", { onClick: () => setCount((c) => c + 1), style: { margin: "4px" } }, "+1"),
+          React.createElement("button", { onClick: () => setCount((c) => c - 1), style: { margin: "4px" } }, "-1")
         );
       }
 
@@ -198,7 +198,13 @@
       const { createSignal } = await import("https://esm.sh/solid-js@1.9.15");
       const { defineSolidComponent, registerSolidRuntime } = await import("./wc-bridge-js/src/solid-adapter.js");
       registerSolidRuntime({
-        render: (fn, target) => { const d = fn(target); return { unmount: () => typeof d === "function" && d() }; }
+        render: (fn, target) => {
+          // fn() -> component render closure; invoke it with the mount target
+          const renderFn = fn();
+          if (typeof renderFn !== "function") return { unmount: () => {} };
+          const dispose = renderFn(target);
+          return { unmount: () => typeof dispose === "function" && dispose() };
+        }
       });
 
       function SolidCounter(props) {
@@ -217,8 +223,7 @@
             target.getElementById("dec")?.addEventListener("click", dec);
           };
           update();
-          const unsub = count.subscribe(update);
-          return () => unsub();
+          return () => {};
         };
       }
 
@@ -235,19 +240,24 @@
     const el = document.getElementById("status-pc");
     try {
       const preact = await import("https://esm.sh/preact@10");
+      const { useState } = await import("https://esm.sh/preact@10/hooks");
       const { definePreactComponent, registerPreactRuntime } = await import("./wc-bridge-js/src/preact-adapter.js");
-      registerPreactRuntime(preact, (node) => ({ unmount: () => { node.innerHTML = "" } }));
+      // preact's render(vnode, container) mounts; render(null, container) unmounts
+      registerPreactRuntime(preact, (vnode, container) => {
+        preact.render(vnode, container);
+        return () => preact.render(null, container);
+      });
 
       function PreactCounter(props) {
-        const [count, setCount] = preact.useState(Number(props.initialCount));
+        const [count, setCount] = useState(Number(props.initialCount));
         props.__emit("count-changed", { count });
         return preact.h(
           "div",
-          { style: "padding: 8px; border: 1px dashed #94a3b8; border-radius: var(--wc-radius)" },
+          { style: { padding: "8px", border: "1px dashed #94a3b8", borderRadius: "var(--wc-radius)" } },
           preact.h("h3", null, props.label),
           preact.h("p", null, `Count: ${count}`),
-          preact.h("button", { onClick: () => setCount(count + 1), style: "margin: 4px" }, "+1"),
-          preact.h("button", { onClick: () => setCount(count - 1), style: "margin: 4px" }, "-1")
+          preact.h("button", { onClick: () => setCount(count + 1), style: { margin: "4px" } }, "+1"),
+          preact.h("button", { onClick: () => setCount(count - 1), style: { margin: "4px" } }, "-1")
         );
       }
 
