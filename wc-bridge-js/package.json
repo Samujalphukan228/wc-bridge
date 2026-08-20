@@ -3,6 +3,14 @@
   "version": "1.0.0",
   "description": "Framework-agnostic web components. Build once in React, Svelte, Vue, SolidJS, Preact, Angular, Leptos \u2014 ship as plain custom elements with one shared contract (kebab-case attrs in, CustomEvents out, shared CSS vars).",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Samujalphukan228/wc-bridge.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Samujalphukan228/wc-bridge/issues"
+  },
+  "homepage": "https://github.com/Samujalphukan228/wc-bridge#readme",
   "main": "dist/index.js",
   "module": "dist/index.js",
   "types": "types/index.d.ts",
