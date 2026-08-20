@@ -195,7 +195,7 @@
   <script type="module">
     const el = document.getElementById("status-sd");
     try {
-      const { createSignal } = await import("https://esm.sh/solid-js@1.69.1");
+      const { createSignal } = await import("https://esm.sh/solid-js@1.9.15");
       const { defineSolidComponent, registerSolidRuntime } = await import("./wc-bridge-js/src/solid-adapter.js");
       registerSolidRuntime({
         render: (fn, target) => { const d = fn(target); return { unmount: () => typeof d === "function" && d() }; }
