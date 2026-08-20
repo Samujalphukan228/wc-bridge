@@ -1,0 +1,7 @@
+{
+  "name": "wc-bridge",
+  "version": "0.1.0",
+  "description": "Wraps React and Angular components as custom elements following the same attribute/event/style contract used by the leptos-webcomponent crate.",
+  "main": "src/index.js",
+  "type": "module"
+}

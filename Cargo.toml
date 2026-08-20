@@ -1,0 +1,3 @@
+[workspace]
+members = ["leptos-webcomponent", "leptos-webcomponent-macro", "examples/lx-counter"]
+resolver = "2"
