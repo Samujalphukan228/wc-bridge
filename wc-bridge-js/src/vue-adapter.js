@@ -8,10 +8,11 @@
 //   - disconnectedCallback fully unmounts (no leaked state)
 //
 // Usage:
-//   import { defineVueComponent } from "wc-bridge/vue-adapter.js";
-//   import { createApp, h } from "vue";
+//   import { defineVueComponent, registerVueRuntime } from "wc-bridge/vue-adapter.js";
+//   import { createApp, h, reactive, watch } from "vue";
 //   import Counter from "./Counter.vue";
 //
+//   registerVueRuntime({ createApp, h, reactive, watch });
 //   defineVueComponent("vu-counter", Counter, {
 //     attrs: { label: "string", initial: "number" },
 //   });
@@ -30,6 +31,13 @@ function coerce(raw, kind) {
   }
 }
 
+let _vueRuntime;
+
+function vueRuntime() {
+  if (!_vueRuntime) _vueRuntime = globalThis.__wcVueRuntime;
+  return _vueRuntime;
+}
+
 export function defineVueComponent(tag, VueComponent, { attrs = {}, useShadow = true } = {}) {
   const attrNames = Object.keys(attrs);
 
@@ -39,39 +47,65 @@ export function defineVueComponent(tag, VueComponent, { attrs = {}, useShadow = 
     }
 
     connectedCallback() {
-      const mountNode = useShadow ? this.attachShadow({ mode: "open" }) : this;
+      if (this._app) return;
+
+      const { createApp, h, reactive, watch } = vueRuntime();
+      if (!createApp) return;
+
+      this._mountNode = useShadow ? this.attachShadow({ mode: "open" }) : this;
 
       // Forward CSS vars into shadow root for theming consistency
       if (useShadow) {
-        const style = mountNode.ownerDocument.createElement("style");
+        const style = this._mountNode.ownerDocument.createElement("style");
         style.textContent = `:host { ${CSS_VARS.map((v) => `${v}: inherit;`).join(" ")} }`;
-        mountNode.appendChild(style);
-        const slot = mountNode.ownerDocument.createElement("div");
-        mountNode.appendChild(slot);
-
-        // @ts-ignore - Vue app creation
-        const app = createApp({
-          render: () => h(VueComponent, this._readProps()),
-        });
-
-        app.config.globalProperties.__emit = (name, detail) =>
-          this.dispatchEvent(new CustomEvent(name, { detail }));
-
-        this._app = app;
-        this._mountNode = slot;
-        app.mount(slot);
+        this._mountNode.appendChild(style);
       }
+
+      const mountPoint = this._mountNode.ownerDocument.createElement("div");
+      this._mountNode.appendChild(mountPoint);
+
+      const self = this;
+      const emit = (name, detail) =>
+        self.dispatchEvent(new CustomEvent(name, { detail }));
+
+      // Vue 3 component wrapper with reactive props
+      const app = createApp({
+        setup() {
+          const props = reactive(self._readProps());
+
+          // Watch for external prop updates and sync them
+          watch(
+            () => self._externalProps,
+            (newProps) => {
+              if (newProps) {
+                Object.keys(newProps).forEach((key) => {
+                  props[key] = newProps[key];
+                });
+              }
+            }
+          );
+
+          return () => h(VueComponent, { ...props, __emit: emit });
+        },
+      });
+
+      app.config.globalProperties.__emit = emit;
+      this._app = app;
+      app.mount(mountPoint);
     }
 
     attributeChangedCallback() {
-      // No-op: props are read fresh on each render. For live updates,
-      // you'd trigger a re-render here by updating a reactive proxy.
+      // Trigger re-render by syncing external props
+      this._externalProps = this._readProps();
     }
 
     disconnectedCallback() {
       if (this._app) {
         this._app.unmount();
         this._app = null;
+      }
+      if (this._mountNode) {
+        this._mountNode.innerHTML = "";
       }
     }
 
@@ -80,11 +114,6 @@ export function defineVueComponent(tag, VueComponent, { attrs = {}, useShadow = 
       for (const name of attrNames) {
         props[name] = coerce(this.getAttribute(name), attrs[name]);
       }
-
-      // Provide __emit callback for CustomEvent contract compliance
-      props.__emit = (name, detail) =>
-        this.dispatchEvent(new CustomEvent(name, { detail }));
-
       return props;
     }
   }
@@ -92,4 +121,13 @@ export function defineVueComponent(tag, VueComponent, { attrs = {}, useShadow = 
   if (!customElements.get(tag)) {
     customElements.define(tag, VueWebComponent);
   }
+}
+
+/**
+ * Call once at app startup so the adapter can find your app's Vue
+ * instance instead of bundling its own.
+ */
+export function registerVueRuntime(vueModule) {
+  globalThis.__wcVueRuntime = vueModule;
+  _vueRuntime = vueModule;
 }

@@ -39,9 +39,20 @@ export function defineSvelteComponent(tag, SvelteComponent, { attrs = {}, useSha
 
     connectedCallback() {
       if (!this._component) {
+        this._mountNode = useShadow ? this.attachShadow({ mode: "open" }) : this;
+
+        // Forward the shared CSS var contract into the shadow root so
+        // this component themes the same way a Leptos/Angular sibling
+        // would, via inherited custom properties.
+        if (useShadow) {
+          const style = this._mountNode.ownerDocument.createElement("style");
+          style.textContent = `:host { ${CSS_VARS.map((v) => `${v}: inherit;`).join(" ")} }`;
+          this._mountNode.appendChild(style);
+        }
+
+        // Svelte components get props via constructor target + props pattern
         this._component = new SvelteComponent({
-          target: useShadow ? this.attachShadow({ mode: "open" }) : this,
-          anchor: this,
+          target: this._mountNode,
           props: this._readProps(),
         });
       }
@@ -49,8 +60,8 @@ export function defineSvelteComponent(tag, SvelteComponent, { attrs = {}, useSha
 
     attributeChangedCallback() {
       if (this._component) {
-        const props = this._readProps();
-        this._component.$set(props);
+        // Svelte components use $set() for prop updates
+        this._component.$set(this._readProps());
       }
     }
 
@@ -63,25 +74,15 @@ export function defineSvelteComponent(tag, SvelteComponent, { attrs = {}, useSha
 
     _readProps() {
       const props = {};
-      const emit = (name, detail) =>
-        this.dispatchEvent(new CustomEvent(name, { detail }));
-
       for (const name of attrNames) {
         props[name] = coerce(this.getAttribute(name), attrs[name]);
       }
 
-      // Forward the shared CSS var contract into the shadow root so
-      // this component themes the same way as a Leptos/Angular sibling.
-      if (useShadow && !this.shadowRoot) {
-        const shadow = this.attachShadow({ mode: "open" });
-        const style = document.createElement("style");
-        style.textContent = `:host { ${CSS_VARS.map((v) => `${v}: inherit;`).join(" ")} }`;
-        shadow.appendChild(style);
-      }
+      // Custom event forwarding for Svelte's dispatch system
+      props.__emit = (eventName, detail) => {
+        this.dispatchEvent(new CustomEvent(eventName, { detail }));
+      };
 
-      // Svelte convention: onXxx callbacks are passed as props;
-      // __emit lets the component fire them as CustomEvents.
-      props.__emit = emit;
       return props;
     }
   }
