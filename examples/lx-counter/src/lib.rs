@@ -5,21 +5,26 @@ use leptos_webcomponent::web_component;
 // __mount_/__update_/__unmount_/__meta_ wasm exports; webcomponent-runtime.js
 // (shared, not regenerated per component) does customElements.define
 // from the meta descriptor. No hand-written JS glue per component.
-#[web_component("lx-counter")]
+#[web_component("lx-card")]
 #[component]
-fn Counter(#[attr] label: String, #[attr] initialCount: i32) -> impl IntoView {
-    let (count, set_count) = create_signal(initialCount);
-
+fn Card(#[attr] label: String, #[attr] description: String) -> impl IntoView {
     view! {
-        <button
-            style="font-family: var(--wc-font, system-ui, sans-serif);
-                   padding: 10px 18px; border-radius: var(--wc-radius, 8px);
-                   border: none; background: var(--wc-color-primary, #dea584);
-                   color: var(--wc-color-text, #111); font-weight: 600; cursor: pointer;"
-            on:click=move |_| set_count.update(|c| *c += 1)
+        <article
+            style="background: var(--wc-color-primary, #000);
+                   color: var(--wc-color-text, #fff);
+                   border: 1px solid var(--wc-color-text, #fff);
+                   padding: 1.5rem; min-height: 200px; display: flex;
+                   flex-direction: column; font-family: var(--wc-font, system-ui, sans-serif);"
         >
-            {format!("🦀 {label}: ")} {move || count.get()}
-        </button>
+            <h3 style="margin: 0 0 0.6rem; text-transform: uppercase;">{label}</h3>
+            <p style="flex: 1; margin: 0; font-size: 0.95rem;">{description}</p>
+            <span
+                style="align-self: flex-start; margin-top: 1rem; font-size: 0.7rem;
+                       text-transform: uppercase; letter-spacing: 0.12em;
+                       border: 1px solid var(--wc-color-text, #fff);
+                       padding: 0.25rem 0.6rem;"
+            >Leptos</span>
+        </article>
     }
 }
 

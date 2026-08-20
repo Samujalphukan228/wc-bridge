@@ -16,13 +16,13 @@ export async function loadLeptosWASM(wasmUrl) {
       const exports = instance.exports;
 
       return {
-        __meta_Counter: () => {
+        __meta_Card: () => {
           return JSON.stringify({
-            tag: "lx-counter",
-            mount: "__mount_Counter",
-            update: "__update_Counter",
-            unmount: "__unmount_Counter",
-            attrs: ["label", "initial-count"],
+            tag: "lx-card",
+            mount: "__mount_Card",
+            update: "__update_Card",
+            unmount: "__unmount_Card",
+            attrs: ["label", "description"],
           });
         },
         ...exports,
@@ -41,57 +41,74 @@ function loadFallbackImplementation() {
   // Return a working JS implementation that mimics the WASM component
   // This is what users get when running locally with proper wasm-bindgen toolchain
   return {
-    __meta_Counter: () => {
+    __meta_Card: () => {
       return JSON.stringify({
-        tag: "lx-counter",
-        mount: "__mount_Counter",
-        update: "__update_Counter",
-        unmount: "__unmount_Counter",
-        attrs: ["label", "initial-count"],
+        tag: "lx-card",
+        mount: "__mount_Card",
+        update: "__update_Card",
+        unmount: "__unmount_Card",
+        attrs: ["label", "description"],
       });
     },
 
-    __mount_Counter: (host, propsJson) => {
+    __mount_Card: (host, propsJson) => {
       try {
         const props = JSON.parse(propsJson);
         const shadow = host.attachShadow({ mode: "open" });
-        shadow.innerHTML = `
-          <style>
-            :host { display: block; }
-            button {
-              font-family: var(--wc-font, system-ui, sans-serif);
-              padding: 10px 18px;
-              border-radius: var(--wc-radius, 8px);
-              border: none;
-              background: var(--wc-color-primary, #2563eb);
-              color: var(--wc-color-text, #fff);
-              font-weight: 600;
-              cursor: pointer;
-            }
-          </style>
-          <button id="counter-btn">🦀 ${props.label || "Counter"}: 0</button>
-        `;
-
-        const btn = shadow.getElementById("counter-btn");
-        let count = Number(props["initial-count"]) || 0;
-
-        btn.addEventListener("click", () => {
-          count++;
-          btn.textContent = `🦀 ${props.label || "Counter"}: ${count}`;
-          host.dispatchEvent(new CustomEvent("count-changed", { detail: { count } }));
-        });
+        renderCard(shadow, props, host);
       } catch (e) {
         // Fallback rendering
-        host.innerHTML = `<button style="padding: 8px; border: 1px dashed #94a3b8; border-radius: var(--wc-radius)">🦀 Counter</button>`;
+        host.innerHTML = `<div style="border: 1px solid #fff; padding: 1.5rem; color: #fff">Leptos card</div>`;
       }
     },
 
-    __update_Counter: (host, propsJson) => {
-      // Handle attribute updates
+    __update_Card: (host, propsJson) => {
+      // Re-render the card with fresh props
+      try {
+        const props = JSON.parse(propsJson);
+        const shadow = host.shadowRoot;
+        if (shadow) renderCard(shadow, props, host);
+      } catch (e) {
+        // ignore
+      }
     },
 
-    __unmount_Counter: (host) => {
+    __unmount_Card: (host) => {
       host.shadowRoot?.remove?.();
     },
   };
+}
+
+function renderCard(shadow, props, host) {
+  const label = props.label || "Leptos";
+  const description = props.description || "";
+  shadow.innerHTML = `
+    <style>
+      :host { display: block; }
+      .card {
+        background: var(--wc-color-primary, #000);
+        color: var(--wc-color-text, #fff);
+        border: 1px solid var(--wc-color-text, #fff);
+        padding: 1.5rem; min-height: 200px; display: flex;
+        flex-direction: column; cursor: pointer;
+        font-family: var(--wc-font, system-ui, sans-serif);
+      }
+      h3 { margin: 0 0 0.6rem; text-transform: uppercase; font-size: 1.4rem; }
+      p { flex: 1; margin: 0; font-size: 0.95rem; color: #ddd; }
+      .tag {
+        align-self: flex-start; margin-top: 1rem; font-size: 0.7rem;
+        text-transform: uppercase; letter-spacing: 0.12em;
+        border: 1px solid var(--wc-color-text, #fff);
+        padding: 0.25rem 0.6rem; color: var(--wc-color-text, #fff);
+      }
+    </style>
+    <article class="card">
+      <h3>${label}</h3>
+      <p>${description}</p>
+      <span class="tag">Leptos</span>
+    </article>`;
+
+  shadow.querySelector(".card")?.addEventListener("click", () => {
+    host.dispatchEvent(new CustomEvent("card-clicked", { detail: { label } }));
+  });
 }

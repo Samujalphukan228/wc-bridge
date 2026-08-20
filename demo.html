@@ -2,73 +2,265 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Multi-FW Web Components Demo</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>wc-bridge — One Component. Every Framework.</title>
   <style>
+    /* ============ BLACK & WHITE THEME — black is the main color ============ */
+    :root {
+      --wc-color-primary: #000000;
+      --wc-color-text: #ffffff;
+      --wc-radius: 0px;
+      --wc-font: system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
-      font-family: var(--wc-font, system-ui, sans-serif);
-      max-width: 900px;
-      margin: 40px auto;
-      padding: 0 1rem;
-      --wc-color-primary: #2563eb;
-      --wc-color-text: #1e293b;
-      --wc-radius: 8px;
+      background: #000000;
+      color: #ffffff;
+      font-family: var(--wc-font);
+      line-height: 1.6;
     }
-    h1 { color: var(--wc-color-text); }
-    section {
-      margin: 24px 0;
-      padding: 16px;
-      border: 1px solid #e2e8f0;
-      border-radius: var(--wc-radius);
+
+    a { color: #ffffff; }
+
+    /* ---------- Navbar ---------- */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 2rem;
+      background: #000000;
+      border-bottom: 1px solid #ffffff;
     }
-    label { display: block; margin: 8px 0; }
-    code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
-    .status { font-size: 0.85em; color: #64748b; margin: 4px 0 8px; }
-    .err { color: #dc2626; font-size: 0.85em; }
+    nav .brand {
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-size: 1.1rem;
+      text-decoration: none;
+    }
+    nav .links a {
+      margin-left: 1.5rem;
+      text-decoration: none;
+      font-size: 0.9rem;
+      padding-bottom: 2px;
+      border-bottom: 1px solid transparent;
+    }
+    nav .links a:hover { border-bottom-color: #ffffff; }
+
+    /* ---------- Hero ---------- */
+    header.hero {
+      padding: 5rem 2rem;
+      text-align: center;
+      border-bottom: 1px solid #ffffff;
+    }
+    header.hero h1 {
+      font-size: clamp(2rem, 6vw, 4rem);
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      text-transform: uppercase;
+    }
+    header.hero p {
+      max-width: 640px;
+      margin: 1.2rem auto 0;
+      color: #cccccc;
+      font-size: 1.1rem;
+    }
+    header.hero .cta {
+      display: inline-block;
+      margin-top: 2rem;
+      padding: 0.8rem 2rem;
+      background: #ffffff;
+      color: #000000;
+      text-decoration: none;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border: 1px solid #ffffff;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+    header.hero .cta:hover { background: #000000; color: #ffffff; }
+
+    /* ---------- Sections ---------- */
+    section { padding: 4rem 2rem; }
+    section > h2 {
+      text-align: center;
+      font-size: 1.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.5rem;
+    }
+    section > .sub {
+      text-align: center;
+      color: #cccccc;
+      margin-bottom: 3rem;
+    }
+
+    /* ---------- Feature cards (rendered by the frameworks) ---------- */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.5rem;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    .card {
+      background: #000000;
+      color: #ffffff;
+      border: 1px solid #ffffff;
+      padding: 1.5rem;
+      min-height: 200px;
+      display: flex;
+      flex-direction: column;
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+    .card:hover { background: #ffffff; color: #000000; }
+    .card:hover .tag { border-color: #000000; color: #000000; }
+    .card h3 {
+      font-size: 1.4rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.6rem;
+    }
+    .card p {
+      flex: 1;
+      font-size: 0.95rem;
+      color: #dddddd;
+    }
+    .card:hover p { color: #333333; }
+    .card .tag {
+      align-self: flex-start;
+      margin-top: 1rem;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      border: 1px solid #ffffff;
+      padding: 0.25rem 0.6rem;
+      color: #ffffff;
+    }
+
+    .status-row {
+      max-width: 1100px;
+      margin: 2rem auto 0;
+      text-align: center;
+      font-size: 0.8rem;
+      color: #888888;
+    }
+    .status-row span { color: #ffffff; }
+
+    /* ---------- Live demo ---------- */
+    .live {
+      max-width: 640px;
+      margin: 0 auto;
+    }
+    .live label {
+      display: block;
+      margin: 1rem 0 0.4rem;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+    .live input {
+      width: 100%;
+      padding: 0.7rem;
+      background: #000000;
+      color: #ffffff;
+      border: 1px solid #ffffff;
+      font-size: 1rem;
+    }
+    .live input:focus { outline: none; background: #111111; }
+    .live .hint { margin-top: 1rem; font-size: 0.8rem; color: #888888; }
+
+    /* ---------- Footer ---------- */
+    footer {
+      border-top: 1px solid #ffffff;
+      padding: 2rem;
+      text-align: center;
+      font-size: 0.85rem;
+      color: #888888;
+    }
+    footer a { color: #ffffff; }
   </style>
 </head>
 <body>
-  <h1>🌐 Multi-Framework Web Components</h1>
-  <p>All components follow the <a href="CONTRACT.md">same contract</a> — interchangeable via HTML attributes.</p>
 
-  <label>initial-count: <input id="countInput" type="number" value="5" min="0" /></label>
-  <label>label: <input id="labelInput" type="text" value="Counter" /></label>
+  <!-- ================= NAVBAR ================= -->
+  <nav>
+    <a class="brand" href="#">wc-bridge</a>
+    <div class="links">
+      <a href="#features">Frameworks</a>
+      <a href="#live">Live Demo</a>
+      <a href="#about">About</a>
+    </div>
+  </nav>
 
-  <section id="sec-lx">
-    <h2>Leptos (Rust → WASM) <code>&lt;lx-counter&gt;</code></h2>
-    <p class="status" id="status-lx">loading…</p>
-    <lx-counter id="lx-demo" initial-count="5" label="Counter"></lx-counter>
+  <!-- ================= HERO ================= -->
+  <header class="hero">
+    <h1>One component.<br />Every framework.</h1>
+    <p>
+      Build a component once in any framework. Ship it as a plain custom
+      element. Use it from every other framework on the same page.
+    </p>
+    <a class="cta" href="#features">See it in action</a>
+  </header>
+
+  <!-- ================= FEATURES / FRAMEWORKS ================= -->
+  <section id="features">
+    <h2>Rendered by six frameworks</h2>
+    <p class="sub">Each card below is a custom element powered by a different framework — same contract, interchangeable.</p>
+
+    <div class="grid">
+      <lx-card id="lx-demo" label="Leptos" description="Rust macros compile straight to WebAssembly. Zero hand-written JS glue."></lx-card>
+      <rx-card id="rx-demo" label="React" description="Hooks, state, and the React 18 concurrent renderer behind a native custom element."></rx-card>
+      <sv-card id="sv-demo" label="Svelte" description="Compiled, dependency-free components mounted through the shared wc-bridge contract."></sv-card>
+      <vu-card id="vu-demo" label="Vue" description="The Vue reactivity system drives this card through createApp + h."></vu-card>
+      <sd-card id="sd-demo" label="SolidJS" description="Fine-grained signals keep this card in sync with the attribute contract."></sd-card>
+      <pc-card id="pc-demo" label="Preact" description="The 3 kB React alternative rendering through the same adapter layer."></pc-card>
+    </div>
+
+    <p class="status-row">
+      Leptos: <span id="status-lx">loading…</span> ·
+      React: <span id="status-rx">loading…</span> ·
+      Svelte: <span id="status-sv">loading…</span> ·
+      Vue: <span id="status-vu">loading…</span> ·
+      SolidJS: <span id="status-sd">loading…</span> ·
+      Preact: <span id="status-pc">loading…</span>
+    </p>
   </section>
 
-  <section id="sec-rx">
-    <h2>React <code>&lt;rx-counter&gt;</code></h2>
-    <p class="status" id="status-rx">loading…</p>
-    <rx-counter id="rx-demo" initial-count="5" label="Counter"></rx-counter>
+  <!-- ================= LIVE DEMO ================= -->
+  <section id="live">
+    <h2>Live attribute updates</h2>
+    <p class="sub">Type below — every framework receives the same kebab-case attributes.</p>
+    <div class="live">
+      <label for="labelInput">label (title of all cards)</label>
+      <input id="labelInput" type="text" value="Leptos" />
+      <label for="descInput">description (body of all cards)</label>
+      <input id="descInput" type="text" value="A component built with a different framework, speaking one contract." />
+      <p class="hint">↑ Try editing both fields. Every card re-renders from the same attribute change.</p>
+    </div>
   </section>
 
-  <section id="sec-sv">
-    <h2>Svelte <code>&lt;sv-counter&gt;</code></h2>
-    <p class="status" id="status-sv">loading…</p>
-    <sv-counter id="sv-demo" initial-count="5" label="Counter"></sv-counter>
+  <!-- ================= ABOUT ================= -->
+  <section id="about">
+    <h2>About the contract</h2>
+    <p class="sub">Every adapter — Leptos, React, Svelte, Vue, SolidJS, Preact — speaks the same three things.</p>
+    <div class="live">
+      <p>• <strong>kebab-case HTML attributes in</strong> — <code>label</code>, <code>description</code></p>
+      <p>• <strong>CustomEvents out</strong> — click a card to fire <code>card-clicked</code></p>
+      <p>• <strong>Shared CSS variables</strong> — <code>--wc-color-primary</code>, <code>--wc-color-text</code>, <code>--wc-radius</code>, <code>--wc-font</code></p>
+    </div>
   </section>
 
-  <section id="sec-vu">
-    <h2>Vue <code>&lt;vu-counter&gt;</code></h2>
-    <p class="status" id="status-vu">loading…</p>
-    <vu-counter id="vu-demo" initial-count="5" label="Counter"></vu-counter>
-  </section>
-
-  <section id="sec-sd">
-    <h2>SolidJS <code>&lt;sd-counter&gt;</code></h2>
-    <p class="status" id="status-sd">loading…</p>
-    <sd-counter id="sd-demo" initial-count="5" label="Counter"></sd-counter>
-  </section>
-
-  <section id="sec-pc">
-    <h2>Preact <code>&lt;pc-counter&gt;</code></h2>
-    <p class="status" id="status-pc">loading…</p>
-    <pc-counter id="pc-demo" initial-count="5" label="Counter"></pc-counter>
-  </section>
+  <!-- ================= FOOTER ================= -->
+  <footer>
+    wc-bridge — leptos-webcomponent + wc-bridge-js &middot; <a href="CONTRACT.md">Read the contract</a> &middot; <a href="README.md">README</a>
+  </footer>
 
   <!--
     Each framework gets its OWN <script type="module"> block. ES modules
@@ -76,24 +268,23 @@
     down the others. Separate blocks guarantee isolation.
   -->
 
-  <!-- ==== Leptos (WASM) ==== -->
+  <!-- ==== Leptos (Rust → WASM) ==== -->
   <script type="module">
     const el = document.getElementById("status-lx");
     try {
       const { registerAll } = await import("./examples/lx-counter/www/webcomponent-runtime.js");
       const { loadLeptosWASM } = await import("./examples/lx-counter/www/wasm-loader.js");
       const wasm = await loadLeptosWASM("./examples/lx-counter/www/lx_counter_bg.wasm");
-      registerAll(wasm, ["__meta_Counter"]);
-      el.textContent = "✅ registered (WASM or JS fallback)";
+      registerAll(wasm, ["__meta_Card"]);
+      el.textContent = "✅ registered";
     } catch (e) {
-      el.textContent = "❌ Leptos failed to load";
+      el.textContent = "❌ failed to load";
       console.warn("Leptos load error:", e);
-      // Still define the tag so the section doesn't look broken.
       const { registerAll } = await import("./examples/lx-counter/www/webcomponent-runtime.js");
-      registerAll({ __meta_Counter: () => JSON.stringify({
-        tag: "lx-counter", mount: "__mount_Counter", update: "__update_Counter",
-        unmount: "__unmount_Counter", attrs: ["label", "initial"],
-      }) }, ["__meta_Counter"]);
+      registerAll({ __meta_Card: () => JSON.stringify({
+        tag: "lx-card", mount: "__mount_Card", update: "__update_Card",
+        unmount: "__unmount_Card", attrs: ["label", "description"],
+      }) }, ["__meta_Card"]);
     }
   </script>
 
@@ -106,23 +297,20 @@
       const { defineReactComponent, registerReactRuntime } = await import("./wc-bridge-js/src/react-adapter.js");
       registerReactRuntime(React, createRoot);
 
-      function ReactCounter({ label, initialCount, __emit }) {
-        const [count, setCount] = React.useState(Number(initialCount));
-        React.useEffect(() => { __emit("count-changed", { count }); }, [count]);
+      function ReactCard({ label, description, __emit }) {
         return React.createElement(
-          "div",
-          { style: { padding: "8px", border: "1px dashed #94a3b8", borderRadius: "var(--wc-radius)" } },
+          "article",
+          { className: "card", onClick: () => __emit("card-clicked", { label }) },
           React.createElement("h3", null, label),
-          React.createElement("p", null, `Count: ${count}`),
-          React.createElement("button", { onClick: () => setCount((c) => c + 1), style: { margin: "4px" } }, "+1"),
-          React.createElement("button", { onClick: () => setCount((c) => c - 1), style: { margin: "4px" } }, "-1")
+          React.createElement("p", null, description),
+          React.createElement("span", { className: "tag" }, "React")
         );
       }
 
-      defineReactComponent("rx-counter", ReactCounter, { attrs: { label: "string", initialCount: "number" } });
+      defineReactComponent("rx-card", ReactCard, { attrs: { label: "string", description: "string" }, useShadow: false });
       el.textContent = "✅ registered";
     } catch (e) {
-      el.textContent = "❌ React failed (network to esm.sh needed)";
+      el.textContent = "❌ failed (network to esm.sh needed)";
       console.warn("React load error:", e);
     }
   </script>
@@ -133,31 +321,29 @@
     try {
       const { defineSvelteComponent } = await import("./wc-bridge-js/src/svelte-adapter.js");
 
-      class SvelteCounter {
+      class SvelteCard {
         constructor({ target, props }) {
           this.target = target; this.props = props;
-          this.count = Number(props.initialCount) || 0; this.render();
+          this.render();
         }
         render() {
           this.target.innerHTML = `
-            <div style="padding: 8px; border: 1px dashed #94a3b8; border-radius: var(--wc-radius)">
-              <h3>${this.props.label}</h3><p>Count: ${this.count}</p>
-              <button id="inc" style="margin: 4px">+1</button>
-              <button id="dec" style="margin: 4px">-1</button>
-            </div>`;
-          this.target.getElementById("inc")?.addEventListener("click", () => { this.count++; this.dispatch(); this.render(); });
-          this.target.getElementById("dec")?.addEventListener("click", () => { this.count--; this.dispatch(); this.render(); });
-          this.dispatch();
+            <article class="card" data-tag="svelte">
+              <h3>${this.props.label}</h3>
+              <p>${this.props.description}</p>
+              <span class="tag">Svelte</span>
+            </article>`;
+          this.target.querySelector(".card")?.addEventListener("click", () =>
+            this.props.__emit?.("card-clicked", { label: this.props.label }));
         }
-        dispatch() { this.props.__emit?.("count-changed", { count: this.count }); }
         $set(props) { this.props = { ...this.props, ...props }; this.render(); }
         $destroy() { this.target.innerHTML = ""; }
       }
 
-      defineSvelteComponent("sv-counter", SvelteCounter, { attrs: { label: "string", initialCount: "number" } });
+      defineSvelteComponent("sv-card", SvelteCard, { attrs: { label: "string", description: "string" }, useShadow: false });
       el.textContent = "✅ registered";
     } catch (e) {
-      el.textContent = "❌ Svelte failed";
+      el.textContent = "❌ failed";
       console.warn("Svelte load error:", e);
     }
   </script>
@@ -170,23 +356,24 @@
       const { defineVueComponent, registerVueRuntime } = await import("./wc-bridge-js/src/vue-adapter.js");
       registerVueRuntime({ createApp, h });
 
-      const VueCounter = {
-        props: ["label", "initialCount", "__emit"],
+      const VueCard = {
+        props: ["label", "description", "__emit"],
         setup(props) {
-          let count = Number(props.initialCount);
-          return () => h("div", { style: "padding: 8px; border: 1px dashed #94a3b8; border-radius: var(--wc-radius)" }, [
+          return () => h("article", {
+            class: "card",
+            onClick: () => props.__emit("card-clicked", { label: props.label }),
+          }, [
             h("h3", null, props.label),
-            h("p", null, `Count: ${count}`),
-            h("button", { onClick: () => { count++; props.__emit("count-changed", { count }); }, style: "margin: 4px" }, "+1"),
-            h("button", { onClick: () => { count--; props.__emit("count-changed", { count }); }, style: "margin: 4px" }, "-1"),
+            h("p", null, props.description),
+            h("span", { class: "tag" }, "Vue"),
           ]);
         },
       };
 
-      defineVueComponent("vu-counter", VueCounter, { attrs: { label: "string", initialCount: "number" } });
+      defineVueComponent("vu-card", VueCard, { attrs: { label: "string", description: "string" }, useShadow: false });
       el.textContent = "✅ registered";
     } catch (e) {
-      el.textContent = "❌ Vue failed (network to esm.sh needed)";
+      el.textContent = "❌ failed (network to esm.sh needed)";
       console.warn("Vue load error:", e);
     }
   </script>
@@ -199,7 +386,6 @@
       const { defineSolidComponent, registerSolidRuntime } = await import("./wc-bridge-js/src/solid-adapter.js");
       registerSolidRuntime({
         render: (fn, target) => {
-          // fn() -> component render closure; invoke it with the mount target
           const renderFn = fn();
           if (typeof renderFn !== "function") return { unmount: () => {} };
           const dispose = renderFn(target);
@@ -207,30 +393,29 @@
         }
       });
 
-      function SolidCounter(props) {
-        const [count, setCount] = createSignal(Number(props.initialCount));
-        const inc = () => { setCount((c) => c + 1); props.__emit("count-changed", { count: count() }); };
-        const dec = () => { setCount((c) => c - 1); props.__emit("count-changed", { count: count() }); };
+      function SolidCard(props) {
+        const [label] = createSignal(props.label);
+        const [description] = createSignal(props.description);
         return (target) => {
           const update = () => {
             target.innerHTML = `
-              <div style="padding: 8px; border: 1px dashed #94a3b8; border-radius: var(--wc-radius)">
-                <h3>${props.label}</h3><p>Count: ${count()}</p>
-                <button id="inc" style="margin: 4px">+1</button>
-                <button id="dec" style="margin: 4px">-1</button>
-              </div>`;
-            target.getElementById("inc")?.addEventListener("click", inc);
-            target.getElementById("dec")?.addEventListener("click", dec);
+              <article class="card">
+                <h3>${label()}</h3>
+                <p>${description()}</p>
+                <span class="tag">SolidJS</span>
+              </article>`;
+            target.querySelector(".card")?.addEventListener("click", () =>
+              props.__emit("card-clicked", { label: label() }));
           };
           update();
           return () => {};
         };
       }
 
-      defineSolidComponent("sd-counter", SolidCounter, { attrs: { label: "string", initialCount: "number" } });
+      defineSolidComponent("sd-card", SolidCard, { attrs: { label: "string", description: "string" }, useShadow: false });
       el.textContent = "✅ registered";
     } catch (e) {
-      el.textContent = "❌ SolidJS failed (network to esm.sh needed)";
+      el.textContent = "❌ failed (network to esm.sh needed)";
       console.warn("SolidJS load error:", e);
     }
   </script>
@@ -240,7 +425,6 @@
     const el = document.getElementById("status-pc");
     try {
       const preact = await import("https://esm.sh/preact@10");
-      const { useState } = await import("https://esm.sh/preact@10/hooks");
       const { definePreactComponent, registerPreactRuntime } = await import("./wc-bridge-js/src/preact-adapter.js");
       // preact's render(vnode, container) mounts; render(null, container) unmounts
       registerPreactRuntime(preact, (vnode, container) => {
@@ -248,44 +432,42 @@
         return () => preact.render(null, container);
       });
 
-      function PreactCounter(props) {
-        const [count, setCount] = useState(Number(props.initialCount));
-        props.__emit("count-changed", { count });
+      function PreactCard(props) {
         return preact.h(
-          "div",
-          { style: { padding: "8px", border: "1px dashed #94a3b8", borderRadius: "var(--wc-radius)" } },
+          "article",
+          { class: "card", onClick: () => props.__emit("card-clicked", { label: props.label }) },
           preact.h("h3", null, props.label),
-          preact.h("p", null, `Count: ${count}`),
-          preact.h("button", { onClick: () => setCount(count + 1), style: { margin: "4px" } }, "+1"),
-          preact.h("button", { onClick: () => setCount(count - 1), style: { margin: "4px" } }, "-1")
+          preact.h("p", null, props.description),
+          preact.h("span", { class: "tag" }, "Preact")
         );
       }
 
-      definePreactComponent("pc-counter", PreactCounter, { attrs: { label: "string", initialCount: "number" } });
+      definePreactComponent("pc-card", PreactCard, { attrs: { label: "string", description: "string" }, useShadow: false });
       el.textContent = "✅ registered";
     } catch (e) {
-      el.textContent = "❌ Preact failed (network to esm.sh needed)";
+      el.textContent = "❌ failed (network to esm.sh needed)";
       console.warn("Preact load error:", e);
     }
   </script>
 
   <!-- ==== Live attribute updates (works regardless of framework) ==== -->
   <script>
-    const inputs = {
-      countInput: document.getElementById("countInput"),
-      labelInput: document.getElementById("labelInput"),
-    };
-    function updateAttr(name, attr) {
-      const val = inputs[name].value;
-      document.querySelectorAll("[initial-count], [label]").forEach((el) => {
-        if (el.id.includes("demo")) el.setAttribute(attr, val);
+    const labelInput = document.getElementById("labelInput");
+    const descInput = document.getElementById("descInput");
+    const cards = document.querySelectorAll("[label][description]");
+
+    function pushUpdates() {
+      cards.forEach((el) => {
+        el.setAttribute("label", labelInput.value);
+        el.setAttribute("description", descInput.value);
       });
     }
-    Object.keys(inputs).forEach((key) => {
-      inputs[key].addEventListener("input", () => {
-        if (key === "countInput") updateAttr("countInput", "initial-count");
-        if (key === "labelInput") updateAttr("labelInput", "label");
-      });
+    labelInput.addEventListener("input", pushUpdates);
+    descInput.addEventListener("input", pushUpdates);
+
+    // Any CustomEvent fired by a card lands here
+    document.addEventListener("card-clicked", (e) => {
+      console.log("card-clicked", e.detail);
     });
   </script>
 </body>
