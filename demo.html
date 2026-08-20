@@ -7,7 +7,7 @@
   <style>
     body {
       font-family: var(--wc-font, system-ui, sans-serif);
-      max-width: 800px;
+      max-width: 900px;
       margin: 40px auto;
       padding: 0 1rem;
       --wc-color-primary: #2563eb;
@@ -35,19 +35,27 @@
       border-radius: 4px;
       font-size: 0.9em;
     }
+    
+    .notice {
+      background: #fffbeb;
+      border: 1px solid #fcd34d;
+      border-radius: 8px;
+      padding: 12px;
+      margin: 16px 0;
+    }
   </style>
 </head>
 <body>
   <h1>🌐 Multi-Framework Web Components</h1>
   <p>All components follow the <a href="CONTRACT.md">same contract</a> — interchangeable via HTML attributes.</p>
+  
+  <div class="notice">
+    ⚠️ This demo requires a local HTTP server due to ES module imports.
+    Run <code>npx serve</code> or <code>python -m http.server 8000</code> then open <a href="http://localhost:8000/demo.html">http://localhost:8000/demo.html</a>
+  </div>
 
   <label>initial-count: <input id="countInput" type="number" value="5" min="0" /></label>
   <label>label: <input id="labelInput" type="text" value="Counter" /></label>
-
-  <section>
-    <h2>Leptos (Rust → WASM) <code>&lt;lx-counter&gt;</code></h2>
-    <lx-counter id="lx-demo" initial-count="5" label="Counter"></lx-counter>
-  </section>
 
   <section>
     <h2>React <code>&lt;rx-counter&gt;</code></h2>
@@ -59,20 +67,20 @@
     <sv-counter id="sv-demo" initial-count="5" label="Counter"></sv-counter>
   </section>
 
-   <section>
-     <h2>Vue <code>&lt;vu-counter&gt;</code></h2>
-     <vu-counter id="vu-demo" initial-count="5" label="Counter"></vu-counter>
-   </section>
+  <section>
+    <h2>Vue <code>&lt;vu-counter&gt;</code></h2>
+    <vu-counter id="vu-demo" initial-count="5" label="Counter"></vu-counter>
+  </section>
 
-   <section>
-     <h2>SolidJS <code>&lt;sd-counter&gt;</code></h2>
-     <sd-counter id="sd-demo" initial-count="5" label="Counter"></sd-counter>
-   </section>
+  <section>
+    <h2>SolidJS <code>&lt;sd-counter&gt;</code></h2>
+    <sd-counter id="sd-demo" initial-count="5" label="Counter"></sd-counter>
+  </section>
 
-   <section>
-     <h2>Preact <code>&lt;pc-counter&gt;</code></h2>
-     <pc-counter id="pc-demo" initial-count="5" label="Counter"></pc-counter>
-   </section>
+  <section>
+    <h2>Preact <code>&lt;pc-counter&gt;</code></h2>
+    <pc-counter id="pc-demo" initial-count="5" label="Counter"></pc-counter>
+  </section>
 
   <script type="module">
     // --- React Adapter ---
@@ -201,30 +209,39 @@
     });
 
     // --- SolidJS Adapter ---
+    import { createSignal } from "https://esm.sh/solid-js@1.69.1";
     import { registerSolidRuntime, defineSolidComponent } from "./wc-bridge-js/src/solid-adapter.js";
 
-    registerSolidRuntime({
-      render: (fn, target) => fn(target), // Minimal render stub for demo
-    });
+    registerSolidRuntime({ render: (fn, target) => fn(target) });
 
-    const SolidCounter = (props) => {
+    function SolidCounter(props) {
       const [count, setCount] = createSignal(Number(props.initial));
       props.__emit("count-changed", { count: count() });
 
-      return {
-        // Return a render function for SolidJS
-        setup: () => {
-          document.getElementById("sd-demo").innerHTML = `
+      return (target) => {
+        const update = () => {
+          target.innerHTML = `
             <div style="padding: 8px; border: 1px dashed #94a3b8; border-radius: var(--wc-radius)">
               <h3>${props.label}</h3>
               <p>Count: ${count()}</p>
-              <button onclick="setCount(c => c + 1)" style="margin: 4px">+1</button>
-              <button onclick="setCount(c => c - 1)" style="margin: 4px">-1</button>
+              <button id="inc" style="margin: 4px">+1</button>
+              <button id="dec" style="margin: 4px">-1</button>
             </div>
           `;
-        },
+          target.getElementById("inc")?.addEventListener("click", () => {
+            setCount(c => c + 1);
+            props.__emit("count-changed", { count: count() });
+          });
+          target.getElementById("dec")?.addEventListener("click", () => {
+            setCount(c => c - 1);
+            props.__emit("count-changed", { count: count() });
+          });
+        };
+        update();
+        // Re-render on signal change
+        const unsub = count.subscribe(update);
       };
-    };
+    }
 
     defineSolidComponent("sd-counter", SolidCounter, {
       attrs: { label: "string", initial: "number" },
