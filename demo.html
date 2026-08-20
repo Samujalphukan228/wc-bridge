@@ -59,10 +59,20 @@
     <sv-counter id="sv-demo" initial-count="5" label="Counter"></sv-counter>
   </section>
 
-  <section>
-    <h2>Vue <code>&lt;vu-counter&gt;</code></h2>
-    <vu-counter id="vu-demo" initial-count="5" label="Counter"></vu-counter>
-  </section>
+   <section>
+     <h2>Vue <code>&lt;vu-counter&gt;</code></h2>
+     <vu-counter id="vu-demo" initial-count="5" label="Counter"></vu-counter>
+   </section>
+
+   <section>
+     <h2>SolidJS <code>&lt;sd-counter&gt;</code></h2>
+     <sd-counter id="sd-demo" initial-count="5" label="Counter"></sd-counter>
+   </section>
+
+   <section>
+     <h2>Preact <code>&lt;pc-counter&gt;</code></h2>
+     <pc-counter id="pc-demo" initial-count="5" label="Counter"></pc-counter>
+   </section>
 
   <script type="module">
     // --- React Adapter ---
@@ -182,6 +192,60 @@
     };
 
     defineVueComponent("vu-counter", VueCounter, {
+      attrs: { label: "string", initial: "number" },
+    });
+
+    // --- SolidJS Adapter ---
+    import { registerSolidRuntime, defineSolidComponent } from "./wc-bridge-js/src/solid-adapter.js";
+
+    registerSolidRuntime({
+      render: (fn, target) => fn(target), // Minimal render stub for demo
+    });
+
+    const SolidCounter = (props) => {
+      const [count, setCount] = createSignal(Number(props.initial));
+      props.__emit("count-changed", { count: count() });
+
+      return {
+        // Return a render function for SolidJS
+        setup: () => {
+          document.getElementById("sd-demo").innerHTML = `
+            <div style="padding: 8px; border: 1px dashed #94a3b8; border-radius: var(--wc-radius)">
+              <h3>${props.label}</h3>
+              <p>Count: ${count()}</p>
+              <button onclick="setCount(c => c + 1)" style="margin: 4px">+1</button>
+              <button onclick="setCount(c => c - 1)" style="margin: 4px">-1</button>
+            </div>
+          `;
+        },
+      };
+    };
+
+    defineSolidComponent("sd-counter", SolidCounter, {
+      attrs: { label: "string", initial: "number" },
+    });
+
+    // --- Preact Adapter ---
+    import * as preact from "https://esm.sh/preact@10";
+    import { registerPreactRuntime, definePreactComponent } from "./wc-bridge-js/src/preact-adapter.js";
+
+    registerPreactRuntime(preact, (node) => ({ unmount: () => { node.innerHTML = "" } }));
+
+    function PreactCounter(props) {
+      const [count, setCount] = preact.useState(Number(props.initial));
+      props.__emit("count-changed", { count });
+
+      return preact.h(
+        "div",
+        { style: "padding: 8px; border: 1px dashed #94a3b8; border-radius: var(--wc-radius)" },
+        preact.h("h3", null, props.label),
+        preact.h("p", null, `Count: ${count}`),
+        preact.h("button", { onClick: () => setCount(count + 1), style: "margin: 4px" }, "+1"),
+        preact.h("button", { onClick: () => setCount(count - 1), style: "margin: 4px" }, "-1")
+      );
+    }
+
+    definePreactComponent("pc-counter", PreactCounter, {
       attrs: { label: "string", initial: "number" },
     });
 
