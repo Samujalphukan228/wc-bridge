@@ -26,7 +26,7 @@ function solidRuntime() {
   return _solidRuntime;
 }
 
-export function defineSolidComponent(tag, Component, { attrs = {}, useShadow = true } = {}) {
+export function defineSolidComponent(tag, Component, { attrs = {}, useShadow = true, runtime } = {}) {
   const attrForMap = attrFor(attrs);
   const attrNames = Object.values(attrForMap);
 
@@ -38,7 +38,9 @@ export function defineSolidComponent(tag, Component, { attrs = {}, useShadow = t
     connectedCallback() {
       if (this._dispose) return;
 
-      const { render } = solidRuntime();
+      // Per-definition `runtime` option takes precedence over the
+      // registered/global runtime.
+      const { render } = runtime || solidRuntime();
       if (!render) return;
 
       this._mountNode = useShadow ? this.attachShadow({ mode: "open" }) : this;

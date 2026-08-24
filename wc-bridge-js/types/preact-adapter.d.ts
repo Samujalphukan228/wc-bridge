@@ -1,4 +1,4 @@
-export function definePreactComponent(tag: any, PreactComponent: any, { attrs, useShadow }?: {
+export function definePreactComponent(tag: any, PreactComponent: any, { attrs, useShadow, runtime }?: {
     attrs?: {} | undefined;
     useShadow?: boolean | undefined;
 }): void;

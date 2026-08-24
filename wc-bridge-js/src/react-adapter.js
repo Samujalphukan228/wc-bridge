@@ -23,10 +23,16 @@
 
 import { coerce, attrFor, cssVarStyle } from "./internal.js";
 
-export function defineReactComponent(tag, ReactComponent, { attrs = {}, useShadow = true } = {}) {
+export function defineReactComponent(tag, ReactComponent, { attrs = {}, useShadow = true, runtime } = {}) {
   // propName -> kebab-case attribute name
   const attrForMap = attrFor(attrs);
   const attrNames = Object.values(attrForMap);
+
+  // Resolution order: per-definition `runtime` option → registered
+  // runtime (registerReactRuntime) → globalThis fallback.
+  const resolveReact = () => runtime?.React || _React || globalThis.__wcReact;
+  const resolveCreateRoot = () =>
+    runtime?.createRoot || _createRoot || globalThis.__wcReactDOMCreateRoot;
 
   class ReactWebComponent extends HTMLElement {
     static get observedAttributes() {
@@ -44,7 +50,7 @@ export function defineReactComponent(tag, ReactComponent, { attrs = {}, useShado
         this.shadowRoot.appendChild(this._mountPoint);
       }
       try {
-        this._root = createRootFor(this._mountPoint || this);
+        this._root = createRootFor(resolveCreateRoot(), this._mountPoint || this);
         this._render();
       } catch (err) {
         console.error(`[wc-bridge:react] failed to mount <${tag}>`, err);
@@ -74,12 +80,14 @@ export function defineReactComponent(tag, ReactComponent, { attrs = {}, useShado
 
     _render() {
       if (!this._root) return;
+      const React = resolveReact();
+      if (!React) return;
       const props = this._readProps();
       // Any prop the consumer wants to expose as an outgoing event
       // should be named onXxx in the component and passed a callback
       // that calls host._emit under the hood — see counter example.
       props.__emit = (name, detail) => this._emit(name, detail);
-      this._root.render(reactCreateElement(ReactComponent, props));
+      this._root.render(React.createElement(ReactComponent, props));
     }
   }
 
@@ -91,18 +99,16 @@ export function defineReactComponent(tag, ReactComponent, { attrs = {}, useShado
 // Lazily resolved so this file has no hard import-time dependency on
 // react/react-dom versions beyond what the consuming app already uses.
 let _React, _createRoot;
-function reactCreateElement(...args) {
-  if (!_React) _React = globalThis.__wcReact;
-  return _React.createElement(...args);
-}
-function createRootFor(node) {
-  if (!_createRoot) _createRoot = globalThis.__wcReactDOMCreateRoot;
-  return _createRoot(node);
+function createRootFor(createRoot, node) {
+  return createRoot(node);
 }
 
 /**
  * Call once at app startup so the adapter can find your app's React
  * instance instead of bundling its own (avoids "two React copies").
+ * Alternatively pass `{ runtime: { React, createRoot } }` to a single
+ * defineReactComponent call — that takes precedence and touches no
+ * global state.
  */
 export function registerReactRuntime(React, createRoot) {
   globalThis.__wcReact = React;

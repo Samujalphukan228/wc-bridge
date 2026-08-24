@@ -5,22 +5,51 @@
 //! reactive scope per DOM host element, so disconnectedCallback can
 //! dispose it cleanly (no leaked reactivity across remounts, per the
 //! contract in CONTRACT.md).
+//!
+//! ## Update semantics
+//!
+//! Two update paths, chosen per component:
+//!
+//! - **Remount (default).** No `#[attr(reactive)]` props: attribute
+//!   changes dispose the current scope and remount with freshly parsed
+//!   props. Internal state resets — predictable and universal.
+//! - **Push (opt-in).** Props marked `#[attr(reactive)]` become
+//!   `RwSignal<T>`s at mount; the runtime keeps a setter per prop and
+//!   attribute changes push new values into the live signals without
+//!   touching the DOM or component state. When a component has any
+//!   reactive props, updates use the push path only — non-reactive
+//!   attributes of that component do NOT live-update.
 
 use leptos::prelude::*;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use wasm_bindgen::JsValue;
 use web_sys::HtmlElement;
 
-thread_local! {
-    /// One disposer per mounted host element, keyed by host id.
-    static SCOPES: RefCell<HashMap<String, ScopeDisposer>> = RefCell::new(HashMap::new());
-    static NEXT_ID: RefCell<u64> = RefCell::new(0);
+type Disposer = Box<dyn FnOnce()>;
+type ViewBuilder = Box<dyn Fn(&str) -> Disposer>;
+/// Type-erased per-prop setter: raw attribute string in, signal update.
+pub type PropSetter = Box<dyn Fn(&str)>;
+
+struct Instance {
+    disposer: Disposer,
+    build: ViewBuilder,
+    /// Empty => remount-on-update. Non-empty => push-on-update.
+    setters: HashMap<String, PropSetter>,
 }
 
-struct ScopeDisposer {
-    handle: Option<Box<dyn FnOnce()>>,
-    count_signal: RwSignal<i32>,
+thread_local! {
+    /// One instance per mounted host element, keyed by host id.
+    static INSTANCES: RefCell<HashMap<String, Instance>> = RefCell::new(HashMap::new());
+    static NEXT_ID: RefCell<u64> = const { RefCell::new(0) };
+}
+
+/// Debug-build console warning. Compiled out of native/test builds where
+/// `web_sys::console` would trap, and out of release wasm builds.
+fn wc_warn(msg: &str) {
+    #[cfg(all(target_arch = "wasm32", debug_assertions))]
+    web_sys::console::warn_1(&::wasm_bindgen::JsValue::from_str(msg));
+    #[cfg(not(all(target_arch = "wasm32", debug_assertions)))]
+    let _ = msg;
 }
 
 fn host_id(host: &HtmlElement) -> String {
@@ -37,79 +66,274 @@ fn host_id(host: &HtmlElement) -> String {
 }
 
 /// Called from the macro-generated `__mount_*` function.
-pub fn mount<F, V>(host: HtmlElement, view_fn: F)
-where
-    F: FnOnce() -> V + 'static,
-    V: IntoView,
-    V::State: 'static,
-{
-    let id = host_id(&host);
-    let handle = mount_to(host, view_fn);
-    let count_signal = RwSignal::new(0); // writable signal for live prop updates
-    SCOPES.with(|scopes| {
-        scopes.borrow_mut().insert(
+///
+/// `build` receives the raw props JSON and must mount the view,
+/// returning a disposer (the macro generates this via [`mount_view`]).
+/// `setters` maps reactive attr names to signal pushers; when empty the
+/// instance uses the remount-on-update path.
+pub fn mount_instance(
+    host: &HtmlElement,
+    initial_props_json: &str,
+    setters: HashMap<String, PropSetter>,
+    build: impl Fn(&str) -> Disposer + 'static,
+) {
+    let id = host_id(host);
+
+    // Dispose any stale instance first so a double-mount (or a
+    // connectedCallback after an unmissed disconnect) can't leak
+    // reactive scopes.
+    let old = INSTANCES.with(|slots| slots.borrow_mut().remove(&id));
+    if let Some(old) = old {
+        wc_warn("[wc-bridge] mount_instance replaced an existing instance");
+        (old.disposer)();
+    }
+
+    let disposer = build_panic_safe(&build, initial_props_json);
+    INSTANCES.with(|slots| {
+        slots.borrow_mut().insert(
             id,
-            ScopeDisposer {
-                handle: Some(Box::new(move || drop(handle))),
-                count_signal,
+            Instance {
+                disposer,
+                build: Box::new(build),
+                setters,
             },
         );
     });
 }
 
-/// Called from the macro-generated `__update_*` function when an
-/// observed attribute changes after initial mount. Reads fresh attribute
-/// values from the DOM and pushes them into a per-instance signal stored
-/// alongside the disposer. Components subscribed to the signal receive
-/// live updates without a full remount.
-pub fn update(host: HtmlElement, props_json: JsValue) {
-    let id = host_id(&host);
-    SCOPES.with(|scopes| {
-        if let Some(ctx) = scopes.borrow_mut().get_mut(&id) {
-            // Push new value into the shared RwSignal so reactive
-            // subscribers (mounted Leptos components) re-render.
-            if let Some(props_str) = props_json.as_string() {
-                if let Ok(json_val) = serde_json::from_str::<serde_json::Value>(&props_str) {
-                    if let Some(initial) = json_val.get("initial").and_then(|v| v.as_str()) {
-                        if let Ok(n) = initial.parse::<i32>() {
-                            ctx.count_signal.set(n);
-                        }
-                    }
-                }
-            }
+/// Calls a view builder, converting a panicking build into an empty host
+/// plus a console error instead of leaving the instance store torn.
+/// (In release wasm builds panics usually abort anyway; this guards
+/// debug/dev builds where unwind is on.)
+fn build_panic_safe(build: &dyn Fn(&str) -> Disposer, props_json: &str) -> Disposer {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| build(props_json))) {
+        Ok(disposer) => disposer,
+        Err(_) => {
+            wc_warn("[wc-bridge] component build panicked — host left empty");
+            Box::new(|| {})
         }
+    }
+}
+
+/// Called from the macro-generated `__update_*` function when an
+/// observed attribute changes after initial mount.
+///
+/// - Push path (reactive props present): parses `new_props_json` once
+///   and pushes each present attr into its setter — no remount, state
+///   preserved.
+/// - Remount path otherwise: disposes the current scope, re-parses all
+///   attributes, mounts anew.
+///
+/// Safe to call before mount (e.g. attributeChangedCallback firing
+/// during custom-element upgrade) — the update is then ignored.
+pub fn update_instance(host: &HtmlElement, new_props_json: &str) {
+    let id = host_id(host);
+    let mut inst = INSTANCES.with(|slots| slots.borrow_mut().remove(&id));
+
+    let Some(mut inst) = inst.take() else {
+        wc_warn("[wc-bridge] update_instance before mount ignored");
+        return;
+    };
+
+    if !inst.setters.is_empty() {
+        push_update(&mut inst, new_props_json);
+        INSTANCES.with(|slots| {
+            slots.borrow_mut().insert(id, inst);
+        });
+        return;
+    }
+
+    // Dispose first so effects/signal owners for the old props stop
+    // running before the new view claims the host subtree.
+    (inst.disposer)();
+    let disposer = build_panic_safe(&inst.build, new_props_json);
+    inst.disposer = disposer;
+    INSTANCES.with(|slots| {
+        slots.borrow_mut().insert(id, inst);
     });
+}
+
+fn push_update(inst: &mut Instance, new_props_json: &str) {
+    let Ok(props) = serde_json::from_str::<serde_json::Value>(new_props_json) else {
+        wc_warn("[wc-bridge] update payload was not valid JSON");
+        return;
+    };
+    // Missing keys keep their last value; only present attrs are pushed.
+    for (name, setter) in inst.setters.iter() {
+        if let Some(raw) = props.get(name).and_then(|v| v.as_str()) {
+            setter(raw);
+        }
+    }
 }
 
 /// Called from the macro-generated `__unmount_*` function
 /// (disconnectedCallback). Disposes the reactive scope so signals /
 /// effects for this instance stop running — required by the contract
-/// so remounting the same tag doesn't leak reactivity.
-pub fn unmount(host: HtmlElement) {
-    let id = host_id(&host);
-    let scope = SCOPES.with(|scopes| scopes.borrow_mut().remove(&id));
-    if let Some(mut scope) = scope {
-        if let Some(disposer) = scope.handle.take() {
-            disposer();
-        }
+/// so remounting the same tag doesn't leak reactivity. Idempotent.
+pub fn unmount_instance(host: &HtmlElement) {
+    let id = host_id(host);
+    let inst = INSTANCES.with(|slots| slots.borrow_mut().remove(&id));
+    if let Some(inst) = inst {
+        (inst.disposer)();
     }
 }
 
+/// Mounts a Leptos view onto `host`, returning a type-erased disposer.
+/// Exists because the macro-generated builder closure can't name the
+/// concrete view type (`impl IntoView`), only pass it through inference.
+pub fn mount_view<F, V>(host: HtmlElement, view: F) -> Disposer
+where
+    F: FnOnce() -> V + 'static,
+    V: IntoView,
+    V::State: 'static,
+{
+    let handle = mount_to(host, view);
+    Box::new(move || drop(handle))
+}
+
+fn extract_prop(props_json: &str, name: &str) -> Option<String> {
+    let map: serde_json::Value = match serde_json::from_str(props_json) {
+        Ok(map) => map,
+        Err(_) => {
+            wc_warn("[wc-bridge] props JSON was not an object");
+            return None;
+        }
+    };
+    let raw = map.get(name).and_then(|v| v.as_str());
+    if raw.is_none() {
+        wc_warn(&format!(
+            "[wc-bridge] missing prop `{name}` — using default"
+        ));
+    }
+    raw.map(ToOwned::to_owned)
+}
+
 /// Parses a single named field out of the JSON object passed from JS
-/// (`{"label": "React", "initial": "4"}` — attribute values arrive as
-/// strings, so numeric/bool types go through `FromStr` after a plain
+/// (`{"label": "React", "initial-count": "4"}` — attribute values arrive
+/// as strings, so numeric/bool types go through `FromStr` after a plain
 /// string extraction).
-pub fn parse_prop<T: PropParse>(props_json: &JsValue, name: &str) -> T {
-    let s = props_json.as_string().unwrap_or_default();
-    let map: serde_json::Value = serde_json::from_str(&s).unwrap_or(serde_json::Value::Null);
-    let raw = map.get(name).and_then(|v| v.as_str()).unwrap_or_default();
-    T::parse(raw)
+pub fn parse_prop<T: PropParse>(props_json: &str, name: &str) -> T {
+    let raw = extract_prop(props_json, name).unwrap_or_default();
+    T::parse(&raw)
+}
+
+/// Parses a named field as JSON into any `Deserialize` type. Attribute
+/// values arrive as strings, so the attr is expected to contain a JSON
+/// document — e.g. `events-json='[{"title":"..."}]'`. Returns `None`
+/// when the prop is missing or not valid JSON for `T`.
+///
+/// The macro exposes this via `#[attr(json)]`; components then declare
+/// the real type directly:
+///
+/// ```ignore
+/// #[attr(json)] events: Vec<CalendarEvent>,
+/// ```
+pub fn parse_json_prop<T: serde::de::DeserializeOwned>(props_json: &str, name: &str) -> Option<T> {
+    let map: serde_json::Value = match serde_json::from_str(props_json) {
+        Ok(map) => map,
+        Err(_) => {
+            wc_warn("[wc-bridge] props JSON was not an object");
+            return None;
+        }
+    };
+    // Attr values are strings wrapping the JSON document.
+    let raw = map.get(name)?.as_str()?;
+    match serde_json::from_str(raw) {
+        Ok(value) => Some(value),
+        Err(err) => {
+            wc_warn(&format!(
+                "[wc-bridge] prop `{name}` is not valid JSON for its type: {err}"
+            ));
+            None
+        }
+    }
 }
 
 /// Small conversion trait so `parse_prop::<i32>` / `::<String>` /
 /// `::<bool>` all just work from the string attribute value.
 pub trait PropParse {
     fn parse(raw: &str) -> Self;
+}
+
+impl<T: PropParse> PropParse for Option<T> {
+    fn parse(raw: &str) -> Self {
+        // Absent attributes arrive as empty strings.
+        if raw.is_empty() {
+            None
+        } else {
+            Some(T::parse(raw))
+        }
+    }
+}
+
+/// Handle for component params marked `#[event]` in the
+/// `#[web_component]` macro. Calling `emit` dispatches a `CustomEvent`
+/// named after the param (kebab-case) on the host element, with a
+/// JSON-serializable payload in `event.detail` — contract §2.
+///
+/// The macro constructs one per event param automatically; components
+/// just call it:
+///
+/// ```ignore
+/// #[web_component("lx-thing")]
+/// #[component]
+/// fn Thing(#[attr] label: String, #[event] count_changed: EventEmitter) -> impl IntoView {
+///     // later: count_changed.emit(&serde_json::json!({ "count": 4 }));
+/// }
+/// ```
+#[derive(Clone)]
+pub struct EventEmitter {
+    host: HtmlElement,
+    name: String,
+}
+
+impl EventEmitter {
+    /// Creates an emitter bound to `host`, firing events named `name`.
+    pub fn new(host: HtmlElement, name: impl Into<String>) -> Self {
+        Self {
+            host,
+            name: name.into(),
+        }
+    }
+
+    /// Emits with any JSON-serializable detail payload.
+    pub fn emit<T: serde::Serialize>(&self, detail: &T) {
+        match serde_json::to_string(detail) {
+            Ok(json) => self.emit_raw(&json),
+            Err(err) => wc_warn(&format!(
+                "[wc-bridge] failed to serialize `{}` payload: {err}",
+                self.name
+            )),
+        }
+    }
+
+    /// Emits with a raw JSON object string as the detail payload.
+    pub fn emit_raw(&self, detail_json: &str) {
+        let init = web_sys::CustomEventInit::new();
+        match js_sys::JSON::parse(detail_json) {
+            Ok(detail) => {
+                init.set_detail(&detail);
+            }
+            Err(_) => wc_warn(&format!(
+                "[wc-bridge] `{}` payload was not valid JSON — emitting null detail",
+                self.name
+            )),
+        }
+        match web_sys::CustomEvent::new_with_event_init_dict(&self.name, &init) {
+            Ok(event) => {
+                let _ = self.host.dispatch_event(&event);
+            }
+            Err(_) => wc_warn(&format!(
+                "[wc-bridge] failed to construct CustomEvent `{}`",
+                self.name
+            )),
+        }
+    }
+
+    /// Event name this emitter fires (kebab-case), useful for logging.
+    pub fn event_name(&self) -> &str {
+        &self.name
+    }
 }
 
 impl PropParse for String {
@@ -134,3 +358,65 @@ impl PropParse for bool {
 }
 
 pub use leptos_webcomponent_macro::web_component;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_string_prop() {
+        assert_eq!(parse_prop::<String>(r#"{"label":"Hi"}"#, "label"), "Hi");
+    }
+
+    #[test]
+    fn parses_numeric_prop_from_string_value() {
+        assert_eq!(
+            parse_prop::<i32>(r#"{"initial-count":"4"}"#, "initial-count"),
+            4
+        );
+        assert_eq!(parse_prop::<f64>(r#"{"ratio":"2.5"}"#, "ratio"), 2.5);
+    }
+
+    #[test]
+    fn unparsable_numeric_falls_back_to_default() {
+        assert_eq!(
+            parse_prop::<i32>(r#"{"initial-count":"nope"}"#, "initial-count"),
+            0
+        );
+    }
+
+    #[test]
+    fn missing_prop_and_malformed_json_fall_back_to_default() {
+        assert_eq!(parse_prop::<String>(r#"{"other":"x"}"#, "label"), "");
+        assert_eq!(parse_prop::<String>("not json", "label"), "");
+        assert!(!parse_prop::<bool>(r#"{"flag":"1"}"#, "flag"));
+        assert!(parse_prop::<bool>(r#"{"flag":"true"}"#, "flag"));
+    }
+
+    #[test]
+    fn kebab_case_attr_names_are_used_verbatim() {
+        assert_eq!(parse_prop::<i32>(r#"{"max-items":"7"}"#, "max-items"), 7);
+    }
+
+    #[test]
+    fn option_prop_is_none_when_absent_and_some_when_present() {
+        let absent: Option<i32> = parse_prop(r#"{"other":"1"}"#, "n");
+        assert_eq!(absent, None);
+        let present: Option<i32> = parse_prop(r#"{"n":"42"}"#, "n");
+        assert_eq!(present, Some(42));
+    }
+
+    #[test]
+    fn json_prop_parses_structured_values() {
+        #[derive(serde::Deserialize, PartialEq, Debug)]
+        struct Ev {
+            title: String,
+        }
+        let got: Option<Vec<Ev>> = parse_json_prop(
+            r#"{"events-json":"[{\"title\":\"Standup\"}]"}"#,
+            "events-json",
+        );
+        assert_eq!(got.unwrap().len(), 1);
+        assert!(parse_json_prop::<Vec<Ev>>(r#"{}"#, "missing").is_none());
+    }
+}

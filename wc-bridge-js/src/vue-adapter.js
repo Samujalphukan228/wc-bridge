@@ -26,7 +26,7 @@ function vueRuntime() {
   return _vueRuntime;
 }
 
-export function defineVueComponent(tag, VueComponent, { attrs = {}, useShadow = true } = {}) {
+export function defineVueComponent(tag, VueComponent, { attrs = {}, useShadow = true, runtime } = {}) {
   const attrForMap = attrFor(attrs);
   const attrNames = Object.values(attrForMap);
 
@@ -38,7 +38,9 @@ export function defineVueComponent(tag, VueComponent, { attrs = {}, useShadow = 
     connectedCallback() {
       if (this._app) return;
 
-      const { createApp, h } = vueRuntime();
+      // Per-definition `runtime` option takes precedence over the
+      // registered/global runtime.
+      const { createApp, h } = runtime || vueRuntime();
       if (!createApp) return;
 
       this._mountNode = useShadow ? this.attachShadow({ mode: "open" }) : this;

@@ -21,7 +21,7 @@ import { coerce, attrFor, cssVarStyle } from "./internal.js";
 
 let _preact, _renderFn;
 
-export function definePreactComponent(tag, PreactComponent, { attrs = {}, useShadow = true } = {}) {
+export function definePreactComponent(tag, PreactComponent, { attrs = {}, useShadow = true, runtime } = {}) {
   const attrForMap = attrFor(attrs);
   const attrNames = Object.values(attrForMap);
 
@@ -74,11 +74,14 @@ export function definePreactComponent(tag, PreactComponent, { attrs = {}, useSha
     }
 
     _render() {
-      const render = globalThis.__wcPreactRender || _renderFn;
+      // Per-definition `runtime` option takes precedence over the
+      // registered/global runtime.
+      const render = runtime?.render || globalThis.__wcPreactRender || _renderFn;
       if (!render) return;
 
       const props = this._readProps();
-      const { createElement } = globalThis.__wcPreact || _preact;
+      const preactMod = runtime?.preact || globalThis.__wcPreact || _preact;
+      const { createElement } = preactMod || {};
       if (!createElement) return;
 
       try {

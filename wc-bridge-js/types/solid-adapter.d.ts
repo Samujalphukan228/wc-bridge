@@ -1,4 +1,4 @@
-export function defineSolidComponent(tag: any, Component: any, { attrs, useShadow }?: {
+export function defineSolidComponent(tag: any, Component: any, { attrs, useShadow, runtime }?: {
     attrs?: {} | undefined;
     useShadow?: boolean | undefined;
 }): void;

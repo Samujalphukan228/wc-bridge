@@ -1,6 +1,6 @@
 {
   "name": "wc-bridge",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Framework-agnostic web components. Build once in React, Svelte, Vue, SolidJS, Preact, Angular, Leptos \u2014 ship as plain custom elements with one shared contract (kebab-case attrs in, CustomEvents out, shared CSS vars).",
   "type": "module",
   "repository": {
@@ -79,7 +79,8 @@
     "types": "tsc -p tsconfig.types.json",
     "lint": "eslint src test scripts --max-warnings=0",
     "prepare": "npm run build",
-    "prepublishOnly": "npm test && npm run build"
+    "prepublishOnly": "npm test && npm run build",
+    "types:widgets": "node scripts/generate-types.mjs ../examples/lx-counter/www -o ../examples/lx-counter/www/lx-widgets.d.ts"
   },
   "keywords": [
     "web-components",

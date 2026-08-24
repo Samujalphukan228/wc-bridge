@@ -1,4 +1,4 @@
-export function defineVueComponent(tag: any, VueComponent: any, { attrs, useShadow }?: {
+export function defineVueComponent(tag: any, VueComponent: any, { attrs, useShadow, runtime }?: {
     attrs?: {} | undefined;
     useShadow?: boolean | undefined;
 }): void;
